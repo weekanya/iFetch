@@ -1,0 +1,11 @@
+Package: com.wee1ka.ifetch
+Name: iFetch
+Depends: mobilesubstrate
+Version: 1.0.3
+Architecture: iphoneos-arm64
+Description: Нативный системный монитор для iOS
+Maintainer: wee1ka
+Author: wee1ka
+Section: Utilities
+Icon: https://weebio.ru/sfc/ifetch-icon.png
+SileoDepiction: https://weebio.ru/sfc/sileodepiction.json
