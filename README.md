@@ -9,8 +9,8 @@
 Данный твик сделан под чистый интерфейс, один в один как родные Настройки, системные цвета и полная схожесть с UI от Apple
 
 <div align="center">
-  <img src="https://твой-домен.com/screen1.png" width="48%">
-  <img src="https://твой-домен.com/screen2.png" width="48%">
+  <img src="https://weebio.ru/sfc/s2.png" width="48%">
+  <img src="https://weebio.ru/sfc/s1.png" width="48%">
 </div>
 
 ## Как это устроено и что умеет
