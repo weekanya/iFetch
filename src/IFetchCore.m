@@ -1,4 +1,5 @@
 #import "IFetchCore.h"
+#import "IFVersion.h"
 
 #import <arpa/inet.h>
 #import <dlfcn.h>
@@ -47,7 +48,12 @@ static NSString *const IFLanguagePreferencesPath = @"/var/mobile/Library/Prefere
 }
 
 + (NSString *)english:(NSString *)english russian:(NSString *)russian {
-    return [self isRussian] ? russian : english;
+    BOOL russianSelected = [self isRussian];
+    NSString *language = russianSelected ? @"ru" : @"en";
+    NSString *path = [[NSBundle mainBundle] pathForResource:language ofType:@"lproj"];
+    NSBundle *bundle = path.length > 0 ? [NSBundle bundleWithPath:path] : nil;
+    NSString *fallback = russianSelected ? russian : english;
+    return bundle ? [bundle localizedStringForKey:english value:fallback table:nil] : fallback;
 }
 
 @end
@@ -75,7 +81,7 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
     static NSDictionary *catalog;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        catalog = @{
+        NSDictionary *fallback = @{
             @"iPhone8,1":  @{@"name": @"iPhone 6s",       @"chip": @"Apple A9",  @"image": @"iphone-6s.png"},
             @"iPhone8,2":  @{@"name": @"iPhone 6s Plus",  @"chip": @"Apple A9",  @"image": @"iphone-6s-plus.png"},
             @"iPhone8,4":  @{@"name": @"iPhone SE",       @"chip": @"Apple A9",  @"image": @"iphone-se-1.png"},
@@ -115,6 +121,21 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
             @"iPhone16,1": @{@"name": @"iPhone 15 Pro",   @"chip": @"Apple A17 Pro", @"image": @"iphone-15-pro.png"},
             @"iPhone16,2": @{@"name": @"iPhone 15 Pro Max", @"chip": @"Apple A17 Pro", @"image": @"iphone-15-pro-max.png"}
         };
+        NSArray<NSString *> *paths = @[
+            [[NSBundle mainBundle] pathForResource:@"device_catalog" ofType:@"json"] ?: @"",
+            @"/var/jb/Applications/IFetch.app/device_catalog.json",
+            @"/Applications/IFetch.app/device_catalog.json"
+        ];
+        NSDictionary *loaded = nil;
+        for (NSString *path in paths) {
+            NSData *data = path.length > 0 ? [NSData dataWithContentsOfFile:path] : nil;
+            id object = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            if ([object isKindOfClass:[NSDictionary class]] && [object count] > 0) {
+                loaded = object;
+                break;
+            }
+        }
+        catalog = loaded ?: fallback;
     });
     return catalog;
 }
@@ -180,6 +201,7 @@ struct if_proc_taskinfo {
 typedef int (*IFProcListPidsFn)(uint32_t, uint32_t, void *, int);
 typedef int (*IFProcPidInfoFn)(int, int, uint64_t, void *, int);
 typedef int (*IFProcNameFn)(int, void *, uint32_t);
+typedef int (*IFProcPidPathFn)(int, void *, uint32_t);
 
 @interface IFProcessMonitor ()
 @property (nonatomic, copy) NSArray<IFProcessSample *> *samples;
@@ -204,6 +226,7 @@ typedef int (*IFProcNameFn)(int, void *, uint32_t);
     IFProcListPidsFn procListPids = (IFProcListPidsFn)dlsym(RTLD_DEFAULT, "proc_listpids");
     IFProcPidInfoFn procPidInfo = (IFProcPidInfoFn)dlsym(RTLD_DEFAULT, "proc_pidinfo");
     IFProcNameFn procName = (IFProcNameFn)dlsym(RTLD_DEFAULT, "proc_name");
+    IFProcPidPathFn procPidPath = (IFProcPidPathFn)dlsym(RTLD_DEFAULT, "proc_pidpath");
     if (procListPids == NULL || procPidInfo == NULL || procName == NULL) {
         self.samples = @[];
         return;
@@ -251,8 +274,23 @@ typedef int (*IFProcNameFn)(int, void *, uint32_t);
         IFProcessSample *sample = [[IFProcessSample alloc] init];
         sample.pid = pid;
         sample.name = [NSString stringWithUTF8String:nameBuffer] ?: [NSString stringWithFormat:@"pid %d", pid];
+        char pathBuffer[4096] = {0};
+        if (procPidPath != NULL && procPidPath(pid, pathBuffer, sizeof(pathBuffer)) > 0) {
+            sample.executablePath = [NSString stringWithUTF8String:pathBuffer] ?: @"";
+        } else {
+            sample.executablePath = @"";
+        }
         sample.residentBytes = taskInfo.resident_size;
         sample.cpuPercent = MIN(MAX(cpuPercent, 0), 999.9);
+        sample.threadCount = taskInfo.thread_count;
+        int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, pid};
+        struct kinfo_proc processInfo = {0};
+        size_t processInfoSize = sizeof(processInfo);
+        if (sysctl(mib, 4, &processInfo, &processInfoSize, NULL, 0) == 0 && processInfoSize > 0) {
+            NSTimeInterval start = processInfo.kp_proc.p_starttime.tv_sec +
+                processInfo.kp_proc.p_starttime.tv_usec / 1000000.0;
+            sample.runningTime = MAX(0, NSDate.date.timeIntervalSince1970 - start);
+        }
         [newSamples addObject:sample];
         currentTimes[pidKey] = @(cpuTime);
     }
@@ -281,6 +319,10 @@ typedef int (*IFProcNameFn)(int, void *, uint32_t);
         return left.cpuPercent > right.cpuPercent ? NSOrderedAscending : NSOrderedDescending;
     }];
     return [sorted subarrayWithRange:NSMakeRange(0, MIN(limit, sorted.count))];
+}
+
+- (NSArray<IFProcessSample *> *)allProcesses {
+    return [self.samples copy];
 }
 
 @end
@@ -551,7 +593,8 @@ static NSInteger IFRecentCrashCount(void) {
 @implementation IFetchCore
 
 + (NSString *)versionString {
-    return @"2.1.0";
+    NSString *bundleVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    return bundleVersion.length > 0 ? bundleVersion : IFETCH_VERSION;
 }
 
 + (uint64_t)totalMemoryBytes {
