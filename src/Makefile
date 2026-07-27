@@ -11,19 +11,19 @@ TOOL_NAME = ifetch
 BUNDLE_NAME = IFetchModule
 
 IFetch_FILES = main.m AppDelegate.m RootViewController.m DiagnosticsViewController.m IFetchCore.m IFDiagnostics.m
-IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration
+IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension
 IFetch_CODESIGN_FLAGS = -SEntitlements.plist
 IFetch_LDFLAGS = -fuse-ld=lld
 IFetch_CFLAGS = -fobjc-arc
 
 ifetch_FILES = cli/main.m IFetchCore.m IFDiagnostics.m
-ifetch_FRAMEWORKS = Foundation SystemConfiguration
+ifetch_FRAMEWORKS = Foundation SystemConfiguration NetworkExtension
 ifetch_CODESIGN_FLAGS = -SEntitlements.plist
 ifetch_LDFLAGS = -fuse-ld=lld
 ifetch_CFLAGS = -fobjc-arc
 
 IFetchModule_FILES = CCModule/IFetchModule.m IFetchCore.m IFDiagnostics.m
-IFetchModule_FRAMEWORKS = UIKit Foundation SystemConfiguration
+IFetchModule_FRAMEWORKS = UIKit Foundation SystemConfiguration NetworkExtension
 IFetchModule_PRIVATE_FRAMEWORKS = ControlCenterUIKit
 IFetchModule_INSTALL_PATH = /Library/ControlCenter/Bundles
 IFetchModule_CFLAGS = -fobjc-arc
