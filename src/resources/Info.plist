@@ -26,13 +26,24 @@
         <string>iPhoneOS</string>
     </array>
     <key>CFBundleVersion</key>
-    <string>302</string>
+    <string>310</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.0.2</string>
+    <string>3.1.0</string>
     <key>MinimumOSVersion</key>
     <string>14.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.wee1ka.ifetch</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>ifetch</string>
+            </array>
+        </dict>
+    </array>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>iFetch uses location permission only to display the current Wi-Fi SSID and BSSID.</string>
     <key>UISupportedInterfaceOrientations</key>

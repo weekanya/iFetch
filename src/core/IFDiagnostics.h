@@ -43,6 +43,7 @@ typedef NS_ENUM(NSInteger, IFHealthState) {
 @end
 
 @interface IFHealthItem : NSObject
+@property (nonatomic, copy) NSString *identifier;
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *detail;
 @property (nonatomic, assign) IFHealthState state;

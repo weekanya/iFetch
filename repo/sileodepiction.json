@@ -8,7 +8,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Native diagnostics for rootless jailbreaks\n\niFetch 3.0 combines live system charts, detailed battery data, a process explorer, crash-log viewer, tweak inspection, Jailbreak Health checks, advanced networking, a Control Center module, and the `ifetch` command for SSH and NewTerm."
+          "markdown": "### Native diagnostics for rootless jailbreaks\n\niFetch 3.1 adds native WidgetKit widgets, safe process termination, drill-down crash reports, continuously refreshed Jailbreak Health data, and a redesigned Control Center module."
         },
         {
           "class": "DepictionSeparatorView"
@@ -19,7 +19,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Five-minute CPU, RAM, network, charge, and temperature history\n- Battery health, capacity, current, voltage, cycles, and charging power\n- Top-50 process explorer with sustained CPU-load warnings\n- Crash-log preview and sharing\n- Searchable tweak list with package and injection-filter details\n- IPv4/IPv6, DNS, Wi-Fi, cellular, VPN, traffic totals, and latency\n- Privacy-redacted diagnostic reports\n- Control Center status module\n- `ifetch --watch`, `--json`, `--network`, and `--battery`"
+          "markdown": "- Small, medium, and large system widgets\n- Battery, RAM, storage, uptime, crash count, and top-memory process on the Home Screen\n- Confirmed SIGTERM action from process details\n- Recent crashes open directly from Jailbreak Health\n- Recursive crash-log discovery with pull-to-refresh and automatic refresh\n- Redesigned 2×2 Control Center module\n- Live charts, advanced networking, tweak inspection, report export, and full CLI"
         }
       ],
       "class": "DepictionStackView"
@@ -29,7 +29,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Диагностика rootless-устройства\n\niFetch 3.0 показывает графики CPU, ОЗУ, сети, заряда и температуры, подробные данные батареи, процессы, crash-логи, установленные твики и состояние jailbreak. В комплект входят модуль Control Center и расширенная команда `ifetch` для SSH и NewTerm."
+          "markdown": "### Диагностика rootless-устройства\n\niFetch 3.1 добавляет настоящие виджеты WidgetKit, безопасное завершение процессов, подробный просмотр сбоев, постоянное обновление Jailbreak Health и полностью обновлённый модуль Control Center."
         },
         {
           "class": "DepictionHeaderView",
@@ -37,7 +37,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- История системных показателей за пять минут\n- Здоровье и параметры аккумулятора\n- Top-50 процессов и предупреждения о длительной нагрузке\n- Просмотр и отправка crash-логов\n- Поиск по твикам и фильтрам инъекции\n- IPv4/IPv6, DNS, Wi-Fi, сотовая сеть, VPN и задержка\n- Приватный экспорт отчёта\n- Модуль Control Center\n- Режимы CLI `--watch`, `--json`, `--network` и `--battery`"
+          "markdown": "- Малый, средний и большой системные виджеты\n- Заряд, ОЗУ, хранилище, аптайм, сбои и самый прожорливый процесс на домашнем экране\n- Завершение процесса через SIGTERM с подтверждением\n- Переход к свежим сбоям прямо из Jailbreak Health\n- Рекурсивный поиск crash-логов, pull-to-refresh и автообновление\n- Новый модуль Control Center размером 2×2\n- Все графики, сеть, твики, экспорт отчёта и CLI из iFetch 3.0"
         }
       ],
       "class": "DepictionStackView"
@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 3.0.2"
+          "title": "Version 3.1.0"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Fixed Wi-Fi SSID and BSSID detection\n- Added the required location permission request\n- Reworked internet availability and HTTPS latency checks\n- Added readable network error messages\n- Added a clear status for devices without an active cellular service\n\nIncludes all diagnostics, CLI, privacy, and Control Center features introduced in iFetch 3.0."
+          "markdown": "- Added native WidgetKit widgets in three sizes\n- Added confirmed process termination from the process inspector\n- Made Recent Crashes interactive in Jailbreak Health\n- Fixed stale 24-hour crash counts and added automatic crash-log refresh\n- Redesigned the Control Center module as an informative 2×2 dashboard"
         }
       ],
       "class": "DepictionStackView"

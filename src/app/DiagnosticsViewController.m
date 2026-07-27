@@ -3,10 +3,16 @@
 #import "../core/IFDiagnostics.h"
 #import "../core/IFetchCore.h"
 #import <CoreLocation/CoreLocation.h>
+#import <errno.h>
+#import <objc/runtime.h>
+#import <signal.h>
+#import <string.h>
 
 static NSString *IFUI(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];
 }
+
+static const void *IFCrashLogShareKey = &IFCrashLogShareKey;
 
 static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSString *detail) {
     static NSString *identifier = @"IFDiagnosticValue";
@@ -259,6 +265,9 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *cpuHistory;
 @property (nonatomic, strong) NSTimer *timer;
 @property (nonatomic, copy) NSArray<NSString *> *relatedTweaks;
+@property (nonatomic, copy) NSString *processName;
+@property (nonatomic, copy) NSString *executablePath;
+@property (nonatomic, strong) UIButton *terminateButton;
 - (instancetype)initWithProcess:(IFProcessSample *)process;
 @end
 
@@ -268,6 +277,8 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self = [super init];
     if (self) {
         _pid = process.pid;
+        _processName = [process.name copy];
+        _executablePath = [process.executablePath copy];
         self.title = process.name;
     }
     return self;
@@ -290,9 +301,18 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.detailsLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.detailsLabel.numberOfLines = 0;
     self.detailsLabel.font = [UIFont monospacedSystemFontOfSize:13 weight:UIFontWeightRegular];
+    self.terminateButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.terminateButton.translatesAutoresizingMaskIntoConstraints = NO;
+    self.terminateButton.backgroundColor = UIColor.systemRedColor;
+    self.terminateButton.tintColor = UIColor.whiteColor;
+    self.terminateButton.layer.cornerRadius = 12;
+    self.terminateButton.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
+    [self.terminateButton setTitle:IFUI(@"Terminate process", @"Завершить процесс") forState:UIControlStateNormal];
+    [self.terminateButton addTarget:self action:@selector(confirmTermination) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:heading];
     [self.view addSubview:self.chart];
     [self.view addSubview:self.detailsLabel];
+    [self.view addSubview:self.terminateButton];
     [NSLayoutConstraint activateConstraints:@[
         [heading.leadingAnchor constraintEqualToAnchor:self.view.layoutMarginsGuide.leadingAnchor],
         [heading.trailingAnchor constraintEqualToAnchor:self.view.layoutMarginsGuide.trailingAnchor],
@@ -303,7 +323,12 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         [self.chart.heightAnchor constraintEqualToConstant:150],
         [self.detailsLabel.leadingAnchor constraintEqualToAnchor:heading.leadingAnchor],
         [self.detailsLabel.trailingAnchor constraintEqualToAnchor:heading.trailingAnchor],
-        [self.detailsLabel.topAnchor constraintEqualToAnchor:self.chart.bottomAnchor constant:18]
+        [self.detailsLabel.topAnchor constraintEqualToAnchor:self.chart.bottomAnchor constant:18],
+        [self.terminateButton.leadingAnchor constraintEqualToAnchor:heading.leadingAnchor],
+        [self.terminateButton.trailingAnchor constraintEqualToAnchor:heading.trailingAnchor],
+        [self.terminateButton.topAnchor constraintEqualToAnchor:self.detailsLabel.bottomAnchor constant:18],
+        [self.terminateButton.heightAnchor constraintEqualToConstant:50],
+        [self.terminateButton.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-18]
     ]];
 }
 
@@ -330,6 +355,9 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     }
     if (current == nil) {
         self.detailsLabel.text = IFUI(@"The process has exited.", @"Процесс завершился.");
+        self.terminateButton.enabled = NO;
+        self.terminateButton.alpha = 0.45;
+        [self.terminateButton setTitle:IFUI(@"Process exited", @"Процесс завершён") forState:UIControlStateNormal];
         [self.timer invalidate];
         self.timer = nil;
         return;
@@ -357,6 +385,81 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         current.executablePath.length ? current.executablePath : IFUI(@"Path unavailable", @"Путь недоступен"),
         IFUI(@"Injected tweaks", @"Внедряемые твики"),
         self.relatedTweaks.count ? [self.relatedTweaks componentsJoinedByString:@", "] : IFUI(@"Not detected", @"Не обнаружены")];
+}
+
+- (IFProcessSample *)currentProcess {
+    [self.processMonitor refresh];
+    for (IFProcessSample *sample in self.processMonitor.allProcesses) {
+        if (sample.pid == self.pid) {
+            return sample;
+        }
+    }
+    return nil;
+}
+
+- (BOOL)isProtectedProcess:(IFProcessSample *)process {
+    NSSet *protectedNames = [NSSet setWithArray:@[@"kernel_task", @"launchd"]];
+    return process == nil || process.pid <= 1 || process.pid == getpid() ||
+        [protectedNames containsObject:process.name.lowercaseString];
+}
+
+- (BOOL)isSameProcess:(IFProcessSample *)process {
+    if (process == nil || process.pid != self.pid) {
+        return NO;
+    }
+    if (self.executablePath.length > 0 && process.executablePath.length > 0) {
+        return [self.executablePath isEqualToString:process.executablePath];
+    }
+    return self.processName.length > 0 && [self.processName isEqualToString:process.name];
+}
+
+- (void)confirmTermination {
+    IFProcessSample *process = [self currentProcess];
+    if (![self isSameProcess:process]) {
+        [self refresh:nil];
+        return;
+    }
+    if ([self isProtectedProcess:process]) {
+        UIAlertController *blocked = [UIAlertController alertControllerWithTitle:IFUI(@"Protected process", @"Защищённый процесс")
+                                                                         message:IFUI(@"iFetch will not terminate launchd, kernel_task or itself.", @"iFetch не завершает launchd, kernel_task и собственный процесс.")
+                                                                  preferredStyle:UIAlertControllerStyleAlert];
+        [blocked addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:blocked animated:YES completion:nil];
+        return;
+    }
+    NSString *message = [NSString stringWithFormat:IFUI(@"Send SIGTERM to %@ (PID %d)? System daemons may restart the interface.", @"Отправить SIGTERM процессу %@ (PID %d)? Системные демоны могут перезапустить интерфейс."), process.name, process.pid];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:IFUI(@"Terminate process", @"Завершить процесс")
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    [alert addAction:[UIAlertAction actionWithTitle:IFUI(@"Terminate", @"Завершить") style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        [self terminateCurrentProcess];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:IFUI(@"Cancel", @"Отмена") style:UIAlertActionStyleCancel handler:nil]];
+    alert.popoverPresentationController.sourceView = self.terminateButton;
+    alert.popoverPresentationController.sourceRect = self.terminateButton.bounds;
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)terminateCurrentProcess {
+    IFProcessSample *process = [self currentProcess];
+    if (![self isSameProcess:process] || [self isProtectedProcess:process]) {
+        [self refresh:nil];
+        return;
+    }
+    errno = 0;
+    if (kill(process.pid, SIGTERM) == 0) {
+        self.terminateButton.enabled = NO;
+        self.terminateButton.alpha = 0.45;
+        [self.terminateButton setTitle:IFUI(@"Termination requested", @"Завершение запрошено") forState:UIControlStateNormal];
+        [self performSelector:@selector(refresh:) withObject:nil afterDelay:0.5];
+        return;
+    }
+    NSString *reason = [NSString stringWithUTF8String:strerror(errno)] ?: IFUI(@"Unknown error", @"Неизвестная ошибка");
+    UIAlertController *error = [UIAlertController alertControllerWithTitle:IFUI(@"Could not terminate process", @"Не удалось завершить процесс")
+                                                                   message:reason
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:error animated:YES completion:nil];
 }
 
 @end
@@ -430,8 +533,33 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"Crash Logs";
+    self.title = IFUI(@"Crash Logs", @"Журнал сбоев");
+    self.refreshControl = [[UIRefreshControl alloc] init];
+    [self.refreshControl addTarget:self action:@selector(reloadLogs:) forControlEvents:UIControlEventValueChanged];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reloadLogs:)
+                                                 name:UIApplicationWillEnterForegroundNotification object:nil];
+    [self reloadLogs:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self reloadLogs:nil];
+}
+
+- (void)reloadLogs:(__unused id)sender {
     self.logs = [IFDiagnostics recentCrashLogsWithLimit:200];
+    UILabel *empty = [[UILabel alloc] init];
+    empty.text = IFUI(@"No crash reports found", @"Отчёты о сбоях не найдены");
+    empty.textAlignment = NSTextAlignmentCenter;
+    empty.textColor = UIColor.secondaryLabelColor;
+    empty.numberOfLines = 0;
+    self.tableView.backgroundView = self.logs.count == 0 ? empty : nil;
+    [self.tableView reloadData];
+    [self.refreshControl endRefreshing];
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
@@ -470,12 +598,15 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     ]];
     controller.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction
                                                                                                  target:self action:@selector(shareCurrentLog:)];
-    controller.navigationItem.rightBarButtonItem.tag = indexPath.row;
+    objc_setAssociatedObject(controller.navigationItem.rightBarButtonItem, IFCrashLogShareKey, log, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     [self.navigationController pushViewController:controller animated:YES];
 }
 
 - (void)shareCurrentLog:(UIBarButtonItem *)sender {
-    IFCrashLog *log = self.logs[(NSUInteger)sender.tag];
+    IFCrashLog *log = objc_getAssociatedObject(sender, IFCrashLogShareKey);
+    if (log.path.length == 0) {
+        return;
+    }
     NSURL *url = [NSURL fileURLWithPath:log.path];
     UIActivityViewController *activity = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
     activity.popoverPresentationController.barButtonItem = sender;
@@ -550,6 +681,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 @property (nonatomic, strong) IFLiveMetricsMonitor *monitor;
 @property (nonatomic, copy) NSArray<IFHealthItem *> *items;
 @property (nonatomic, strong) NSTimer *samplingTimer;
+@property (nonatomic, strong) NSTimer *refreshTimer;
 @property (nonatomic, assign) NSInteger sampleCount;
 @end
 
@@ -561,7 +693,14 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.monitor = [[IFLiveMetricsMonitor alloc] init];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
                                                                                           target:self action:@selector(refresh)];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
     [self refresh];
+    [self.refreshTimer invalidate];
+    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:60 target:self selector:@selector(refreshStatus)
+                                                       userInfo:nil repeats:YES];
 }
 
 - (void)refresh {
@@ -571,6 +710,14 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.samplingTimer = [NSTimer scheduledTimerWithTimeInterval:1 target:self
                                                         selector:@selector(sampleHealth:)
                                                         userInfo:nil repeats:YES];
+}
+
+- (void)refreshStatus {
+    [self.monitor refresh];
+    self.items = [IFDiagnostics healthItemsWithJailbreak:[IFetchCore jailbreakInfo]
+                                                battery:[IFDiagnostics batteryDetails]
+                                              processes:self.monitor.sustainedHighCPUProcesses];
+    [self.tableView reloadData];
 }
 
 - (void)sampleHealth:(__unused NSTimer *)timer {
@@ -590,6 +737,8 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     [super viewWillDisappear:animated];
     [self.samplingTimer invalidate];
     self.samplingTimer = nil;
+    [self.refreshTimer invalidate];
+    self.refreshTimer = nil;
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
@@ -603,7 +752,19 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     NSArray *colors = @[UIColor.systemGreenColor, UIColor.systemOrangeColor, UIColor.systemRedColor];
     cell.imageView.image = [UIImage systemImageNamed:symbols[item.state]];
     cell.imageView.tintColor = colors[item.state];
+    if ([item.identifier isEqualToString:@"recent_crashes"]) {
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    }
     return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    IFHealthItem *item = self.items[indexPath.row];
+    if ([item.identifier isEqualToString:@"recent_crashes"]) {
+        [self.navigationController pushViewController:[[IFCrashLogsViewController alloc] init] animated:YES];
+    }
 }
 
 @end

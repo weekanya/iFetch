@@ -567,11 +567,12 @@ static NSInteger IFActiveTweakCount(NSString *rootPrefix) {
 }
 
 static NSInteger IFRecentCrashCount(void) {
-    NSString *directory = @"/var/mobile/Library/Logs/CrashReporter";
-    NSArray<NSURL *> *files = [[NSFileManager defaultManager] contentsOfDirectoryAtURL:[NSURL fileURLWithPath:directory]
-                                                           includingPropertiesForKeys:@[NSURLContentModificationDateKey, NSURLIsRegularFileKey]
-                                                                              options:NSDirectoryEnumerationSkipsHiddenFiles
-                                                                                error:nil];
+    NSURL *directory = [NSURL fileURLWithPath:@"/var/mobile/Library/Logs/CrashReporter"];
+    NSArray *keys = @[NSURLContentModificationDateKey, NSURLIsRegularFileKey];
+    NSDirectoryEnumerator<NSURL *> *files = [[NSFileManager defaultManager] enumeratorAtURL:directory
+                                                                 includingPropertiesForKeys:keys
+                                                                                    options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                               errorHandler:nil];
     NSDate *cutoff = [NSDate dateWithTimeIntervalSinceNow:-24 * 60 * 60];
     NSInteger count = 0;
     for (NSURL *url in files) {

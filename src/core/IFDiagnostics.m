@@ -421,11 +421,21 @@ static double IFSystemCPUPercent(void) {
 
 + (NSArray<IFCrashLog *> *)recentCrashLogsWithLimit:(NSUInteger)limit {
     NSURL *directory = [NSURL fileURLWithPath:@"/var/mobile/Library/Logs/CrashReporter"];
-    NSArray<NSURL *> *urls = [[NSFileManager defaultManager] contentsOfDirectoryAtURL:directory
-                                                          includingPropertiesForKeys:@[NSURLContentModificationDateKey]
-                                                                             options:NSDirectoryEnumerationSkipsHiddenFiles
-                                                                               error:nil];
-    urls = [urls sortedArrayUsingComparator:^NSComparisonResult(NSURL *left, NSURL *right) {
+    NSArray *keys = @[NSURLContentModificationDateKey, NSURLIsRegularFileKey];
+    NSDirectoryEnumerator<NSURL *> *enumerator = [[NSFileManager defaultManager] enumeratorAtURL:directory
+                                                                     includingPropertiesForKeys:keys
+                                                                                        options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                                   errorHandler:nil];
+    NSMutableArray<NSURL *> *found = [NSMutableArray array];
+    for (NSURL *url in enumerator) {
+        NSNumber *regular = nil;
+        [url getResourceValue:&regular forKey:NSURLIsRegularFileKey error:nil];
+        NSString *extension = url.pathExtension.lowercaseString;
+        if (regular.boolValue && [@[@"ips", @"crash", @"panic", @"synced"] containsObject:extension]) {
+            [found addObject:url];
+        }
+    }
+    NSArray<NSURL *> *urls = [found sortedArrayUsingComparator:^NSComparisonResult(NSURL *left, NSURL *right) {
         NSDate *leftDate = nil;
         NSDate *rightDate = nil;
         [left getResourceValue:&leftDate forKey:NSURLContentModificationDateKey error:nil];
@@ -436,11 +446,8 @@ static double IFSystemCPUPercent(void) {
     NSMutableArray *logs = [NSMutableArray array];
     for (NSURL *url in urls) {
         NSString *extension = url.pathExtension.lowercaseString;
-        if (![@[@"ips", @"crash", @"panic", @"synced"] containsObject:extension]) {
-            continue;
-        }
         NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:nil];
-        NSUInteger length = MIN((NSUInteger)65536, data.length);
+        NSUInteger length = MIN((NSUInteger)(2 * 1024 * 1024), data.length);
         NSString *preview = length > 0 ? [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, length)]
                                                                encoding:NSUTF8StringEncoding] : @"";
         NSDate *date = nil;
@@ -507,8 +514,10 @@ static double IFSystemCPUPercent(void) {
                                               battery:(IFBatteryDetails *)battery
                                             processes:(NSArray<IFProcessSample *> *)hotProcesses {
     NSMutableArray *items = [NSMutableArray array];
-    void (^add)(NSString *, NSString *, IFHealthState) = ^(NSString *title, NSString *detail, IFHealthState state) {
+    void (^add)(NSString *, NSString *, NSString *, IFHealthState) =
+        ^(NSString *identifier, NSString *title, NSString *detail, IFHealthState state) {
         IFHealthItem *item = [[IFHealthItem alloc] init];
+        item.identifier = identifier;
         item.title = title;
         item.detail = detail;
         item.state = state;
@@ -516,12 +525,12 @@ static double IFSystemCPUPercent(void) {
     };
 
     BOOL rootless = [jailbreak.rootPrefix isEqualToString:@"/var/jb"];
-    add(IFD(@"Rootless bootstrap", @"Rootless bootstrap"),
+    add(@"bootstrap", IFD(@"Rootless bootstrap", @"Rootless bootstrap"),
         rootless ? IFD(@"Available at /var/jb", @"Доступен в /var/jb") : IFD(@"Not detected", @"Не обнаружен"),
         rootless ? IFHealthStateGood : IFHealthStateProblem);
 
     BOOL injector = ![jailbreak.injectorDescription containsString:IFD(@"Not detected", @"Не обнаружен")];
-    add(IFD(@"Hook injection", @"Инъекция твиков"), jailbreak.injectorDescription,
+    add(@"injector", IFD(@"Hook injection", @"Инъекция твиков"), jailbreak.injectorDescription,
         injector ? IFHealthStateGood : IFHealthStateProblem);
 
     NSNumber *total = [IFetchCore totalStorageBytes];
@@ -530,27 +539,27 @@ static double IFSystemCPUPercent(void) {
         ? total.unsignedLongLongValue - used.unsignedLongLongValue : 0;
     IFHealthState storageState = free > 2ULL * 1024 * 1024 * 1024 ? IFHealthStateGood
         : free > 512ULL * 1024 * 1024 ? IFHealthStateWarning : IFHealthStateProblem;
-    add(IFD(@"Free storage", @"Свободное место"), [IFetchCore formatBytes:free], storageState);
+    add(@"storage", IFD(@"Free storage", @"Свободное место"), [IFetchCore formatBytes:free], storageState);
 
     IFHealthState batteryState = battery.healthPercent == 0 || battery.healthPercent >= 80
         ? IFHealthStateGood : battery.healthPercent >= 70 ? IFHealthStateWarning : IFHealthStateProblem;
     NSString *batteryText = battery.healthPercent > 0
         ? [NSString stringWithFormat:@"%.0f%%", battery.healthPercent] : IFD(@"Unavailable", @"Недоступно");
-    add(IFD(@"Battery health", @"Здоровье аккумулятора"), batteryText, batteryState);
+    add(@"battery_health", IFD(@"Battery health", @"Здоровье аккумулятора"), batteryText, batteryState);
 
     double temperature = battery.temperatureCelsius.doubleValue;
     IFHealthState thermalState = temperature <= 0 || temperature < 38 ? IFHealthStateGood
         : temperature < 43 ? IFHealthStateWarning : IFHealthStateProblem;
-    add(IFD(@"Battery temperature", @"Температура батареи"),
+    add(@"battery_temperature", IFD(@"Battery temperature", @"Температура батареи"),
         temperature > 0 ? [NSString stringWithFormat:@"%.1f °C", temperature] : IFD(@"Unavailable", @"Недоступно"),
         thermalState);
 
     NSInteger crashCount = jailbreak.recentCrashCount;
-    add(IFD(@"Recent crashes", @"Недавние сбои"),
+    add(@"recent_crashes", IFD(@"Recent crashes", @"Недавние сбои"),
         [NSString stringWithFormat:@"%ld / 24h", (long)crashCount],
         crashCount == 0 ? IFHealthStateGood : crashCount < 3 ? IFHealthStateWarning : IFHealthStateProblem);
 
-    add(IFD(@"Sustained CPU load", @"Длительная нагрузка CPU"),
+    add(@"cpu_load", IFD(@"Sustained CPU load", @"Длительная нагрузка CPU"),
         hotProcesses.count == 0 ? IFD(@"No offenders", @"Проблем не найдено")
         : [hotProcesses valueForKey:@"name"] ? [[hotProcesses valueForKey:@"name"] componentsJoinedByString:@", "] : @"",
         hotProcesses.count == 0 ? IFHealthStateGood : IFHealthStateWarning);

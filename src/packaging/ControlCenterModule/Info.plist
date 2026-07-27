@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.0.2</string>
+    <string>3.1.0</string>
     <key>CFBundleVersion</key>
-    <string>302</string>
+    <string>310</string>
     <key>MinimumOSVersion</key>
     <string>14.0</string>
     <key>UIDeviceFamily</key>
@@ -41,14 +41,14 @@
         <key>Portrait</key>
         <dict>
             <key>Height</key>
-            <integer>1</integer>
+            <integer>2</integer>
             <key>Width</key>
             <integer>2</integer>
         </dict>
         <key>Landscape</key>
         <dict>
             <key>Height</key>
-            <integer>1</integer>
+            <integer>2</integer>
             <key>Width</key>
             <integer>2</integer>
         </dict>

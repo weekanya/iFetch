@@ -11,6 +11,7 @@ include $(THEOS)/makefiles/common.mk
 APPLICATION_NAME = IFetch
 TOOL_NAME = ifetch
 BUNDLE_NAME = IFetchModule
+APPEX_NAME = IFetchWidgets
 
 IFetch_FILES = \
 	app/main.m \
@@ -46,6 +47,18 @@ IFetchModule_LDFLAGS = -fuse-ld=lld
 IFetchModule_BUNDLE_EXTENSION = bundle
 IFetchModule_BUNDLE_RESOURCE_DIRS = packaging/ControlCenterModule
 
+IFetchWidgets_FILES = \
+	widgets/IFetchWidgets.swift \
+	widgets/IFWidgetMetrics.m
+IFetchWidgets_FRAMEWORKS = SwiftUI WidgetKit UIKit Foundation
+IFetchWidgets_INSTALL_PATH = /Applications/IFetch.app/PlugIns
+IFetchWidgets_RESOURCE_DIRS = packaging/WidgetExtension
+IFetchWidgets_SWIFT_BRIDGING_HEADER = widgets/IFetchWidgets-Bridging-Header.h
+IFetchWidgets_CODESIGN_FLAGS = -Spackaging/WidgetEntitlements.plist
+IFetchWidgets_LDFLAGS = -fuse-ld=lld
+IFetchWidgets_CFLAGS = -fobjc-arc
+
 include $(THEOS)/makefiles/application.mk
 include $(THEOS)/makefiles/tool.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
+include $(THEOS_MAKE_PATH)/appex.mk
