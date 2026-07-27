@@ -47,7 +47,7 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 3.0.1"
+          "title": "Version 3.0.2"
         },
         {
           "class": "DepictionMarkdownView",
