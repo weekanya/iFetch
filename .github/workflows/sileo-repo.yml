@@ -1,74 +1,79 @@
-  name: Publish Sileo Repository
+name: Publish Sileo Repository
 
-  on:
-    release:
-      types: [published, edited]
-    workflow_dispatch:
+on:
+  push:
+    branches: [main]
+    paths:
+      - "repo/**"
+      - ".github/workflows/sileo-repo.yml"
+  release:
+    types: [published, edited]
+  workflow_dispatch:
 
-  permissions:
-    contents: read
-    pages: write
-    id-token: write
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-  concurrency:
-    group: github-pages
-    cancel-in-progress: true
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
 
-  jobs:
-    build:
-      runs-on: ubuntu-latest
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
-        - name: Install repository tools
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y apt-utils dpkg-dev xz-utils bzip2
+      - name: Install repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-utils dpkg-dev xz-utils bzip2
 
-        - name: Prepare repository
-          env:
-            GH_TOKEN: ${{ github.token }}
-            RELEASE_TAG: ${{ github.event.release.tag_name }}
-          run: |
-            mkdir -p _site/debs
-            cp -a repo/. _site/
+      - name: Prepare repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir -p _site/debs
+          cp -a repo/. _site/
 
-            TAG="$RELEASE_TAG"
-            if [ -z "$TAG" ]; then
-              TAG="$(gh release view --json tagName --jq .tagName)"
-            fi
+          TAG="$RELEASE_TAG"
+          if [ -z "$TAG" ]; then
+            TAG="$(gh release view --json tagName --jq .tagName)"
+          fi
 
-            gh release download "$TAG" \
-              --pattern '*_iphoneos-arm64.deb' \
-              --dir _site/debs
+          gh release download "$TAG" \
+            --pattern '*_iphoneos-arm64.deb' \
+            --dir _site/debs
 
-            cd _site
-            dpkg-scanpackages -m debs /dev/null > Packages
-            gzip -9c Packages > Packages.gz
-            bzip2 -9c Packages > Packages.bz2
-            xz -9c Packages > Packages.xz
-            apt-ftparchive -c ../repo/release.conf release . > Release
-            touch .nojekyll
+          cd _site
+          dpkg-scanpackages -m debs /dev/null > Packages
+          gzip -9c Packages > Packages.gz
+          bzip2 -9c Packages > Packages.bz2
+          xz -9c Packages > Packages.xz
+          apt-ftparchive -c ../repo/release.conf release . > Release
+          touch .nojekyll
 
-        - name: Configure Pages
-          uses: actions/configure-pages@v5
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
-        - name: Upload Pages artifact
-          uses: actions/upload-pages-artifact@v4
-          with:
-            path: _site
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
 
-    deploy:
-      needs: build
-      runs-on: ubuntu-latest
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
 
-      environment:
-        name: github-pages
-        url: ${{ steps.deployment.outputs.page_url }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
-      steps:
-        - name: Deploy
-          id: deployment
-          uses: actions/deploy-pages@v4
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
