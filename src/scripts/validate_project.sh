@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${project_dir}"
+
+python3 -m json.tool site/sileodepiction.json >/dev/null
+xmllint --noout Entitlements.plist Resources/Info.plist
+
+package_version="$(sed -n 's/^Version: //p' control)"
+bundle_version="$(xmllint --xpath 'string(//key[.="CFBundleShortVersionString"]/following-sibling::string[1])' Resources/Info.plist)"
+if [[ "${package_version}" != "${bundle_version}" ]]; then
+    echo "Version mismatch: control=${package_version}, bundle=${bundle_version}" >&2
+    exit 1
+fi
+
+missing=0
+while IFS= read -r image; do
+    if [[ ! -f "Resources/DevicePhotos/${image}" ]]; then
+        echo "Missing device image: ${image}" >&2
+        missing=1
+    fi
+done < <(sed -n 's/.*@"image": @"\([^"]*\.png\)".*/\1/p' IFetchCore.m | sort -u)
+if [[ "${missing}" -ne 0 ]]; then
+    exit 1
+fi
+
+image_count="$(find Resources/DevicePhotos -maxdepth 1 -name '*.png' | wc -l)"
+if [[ "${image_count}" -lt 33 ]]; then
+    echo "Expected at least 33 device images, found ${image_count}" >&2
+    exit 1
+fi
+
+package="packages/com.wee1ka.ifetch_${package_version}_iphoneos-arm64.deb"
+if [[ -f "${package}" ]]; then
+    listing="$(dpkg-deb -c "${package}")"
+    if ! grep -q 'IFetch.app/IFetch' <<<"${listing}"; then
+        echo "Application binary is missing from package" >&2
+        exit 1
+    fi
+    if ! grep -q 'usr/bin/ifetch' <<<"${listing}"; then
+        echo "CLI binary is missing from package" >&2
+        exit 1
+    fi
+fi
+
+echo "iFetch project validation passed"
