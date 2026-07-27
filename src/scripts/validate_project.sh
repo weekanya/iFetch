@@ -5,12 +5,16 @@ project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${project_dir}"
 
 python3 -m json.tool site/sileodepiction.json >/dev/null
-xmllint --noout Entitlements.plist Resources/Info.plist
+python3 -m json.tool repo/sileodepiction.json >/dev/null
+python3 -m json.tool Resources/device_catalog.json >/dev/null
+xmllint --noout Entitlements.plist Resources/Info.plist IFetchModule/Info.plist
 
 package_version="$(sed -n 's/^Version: //p' control)"
 bundle_version="$(xmllint --xpath 'string(//key[.="CFBundleShortVersionString"]/following-sibling::string[1])' Resources/Info.plist)"
-if [[ "${package_version}" != "${bundle_version}" ]]; then
-    echo "Version mismatch: control=${package_version}, bundle=${bundle_version}" >&2
+module_version="$(xmllint --xpath 'string(//key[.="CFBundleShortVersionString"]/following-sibling::string[1])' IFetchModule/Info.plist)"
+source_version="$(awk -F'"' '/^#define IFETCH_VERSION / { print $2 }' IFVersion.h)"
+if [[ "${package_version}" != "${bundle_version}" || "${package_version}" != "${module_version}" || "${package_version}" != "${source_version}" ]]; then
+    echo "Version mismatch: control=${package_version}, app=${bundle_version}, module=${module_version}, source=${source_version}" >&2
     exit 1
 fi
 
@@ -21,6 +25,13 @@ while IFS= read -r image; do
         missing=1
     fi
 done < <(sed -n 's/.*@"image": @"\([^"]*\.png\)".*/\1/p' IFetchCore.m | sort -u)
+
+while IFS= read -r image; do
+    if [[ ! -f "Resources/DevicePhotos/${image}" ]]; then
+        echo "Missing device image from device_catalog.json: ${image}" >&2
+        missing=1
+    fi
+done < <(python3 -c 'import json; print("\n".join(sorted({v["image"] for v in json.load(open("Resources/device_catalog.json")).values()})))')
 if [[ "${missing}" -ne 0 ]]; then
     exit 1
 fi
@@ -40,6 +51,10 @@ if [[ -f "${package}" ]]; then
     fi
     if ! grep -q 'usr/bin/ifetch' <<<"${listing}"; then
         echo "CLI binary is missing from package" >&2
+        exit 1
+    fi
+    if ! grep -q 'Library/ControlCenter/Bundles/IFetchModule.bundle/IFetchModule' <<<"${listing}"; then
+        echo "Control Center module is missing from package" >&2
         exit 1
     fi
 fi
