@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "repo/**"
+      - "assets/**"
       - ".github/workflows/sileo-repo.yml"
   release:
     types: [published, edited]
@@ -63,6 +64,7 @@ jobs:
         run: |
           mkdir -p _site/debs
           cp -a repo/. _site/
+          cp -a assets _site/assets
 
           TAG="$RELEASE_TAG"
           if [ -z "$TAG" ]; then

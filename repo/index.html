@@ -2,12 +2,230 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>weekanya iOS Repository</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#061526">
+  <meta name="description" content="Rootless iOS utilities for Sileo. Home of iFetch system diagnostics for iOS 14–17.">
+  <meta property="og:title" content="weekanya Repository">
+  <meta property="og:description" content="Rootless iOS utilities, diagnostics and system tools.">
+  <meta property="og:image" content="https://weekanya.github.io/iFetch/ifetch-banner.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://weekanya.github.io/iFetch/">
+  <title>weekanya Repository</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="CydiaIcon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="CydiaIcon@3x.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>weekanya iOS Repository</h1>
-  <p>Add this source to Sileo:</p>
-  <code>https://weekanya.github.io/iFetch/</code>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="weekanya Repository">
+      <img src="CydiaIcon@2x.png" alt="">
+      <span>
+        <strong>weekanya</strong>
+        <small>iOS Repository</small>
+      </span>
+    </a>
+    <nav class="header-nav" aria-label="Main navigation">
+      <a href="#packages" data-i18n="navPackages">Packages</a>
+      <a href="#about" data-i18n="navAbout">About</a>
+      <a href="https://github.com/weekanya/iFetch" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+    <div class="language-switch" role="group" aria-label="Language">
+      <button type="button" data-language="en">EN</button>
+      <button type="button" data-language="ru">RU</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero shell">
+      <div class="hero-copy">
+        <div class="eyebrow">
+          <span class="status-dot"></span>
+          <span data-i18n="heroEyebrow">Rootless repository · iOS 14–17</span>
+        </div>
+        <h1 data-i18n="heroTitle">System tools made for jailbroken iPhones.</h1>
+        <p data-i18n="heroDescription">A focused repository for native diagnostics, monitoring and utilities. Built for Sileo and modern rootless jailbreaks.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="sileo://source/https://weekanya.github.io/iFetch/">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 19h14"/></svg>
+            <span data-i18n="addSileo">Add to Sileo</span>
+          </a>
+          <button class="button button-secondary" id="copy-source" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+            <span data-i18n="copySource">Copy source</span>
+          </button>
+        </div>
+        <div class="source-address" aria-label="Repository URL">
+          <span>https://weekanya.github.io/iFetch/</span>
+          <span class="secure-label">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            HTTPS
+          </span>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="iFetch package preview">
+        <div class="device-glow"></div>
+        <div class="showcase-card">
+          <div class="showcase-top">
+            <img src="ifetch-icon.png" alt="iFetch">
+            <div>
+              <span class="showcase-label" data-i18n="featuredPackage">Featured package</span>
+              <h2>iFetch</h2>
+            </div>
+            <span class="version-pill" id="hero-version">3.1.0</span>
+          </div>
+          <p data-i18n="showcaseText">Live diagnostics, widgets, process control, crash reports and a full terminal client.</p>
+          <div class="metric-preview">
+            <div>
+              <span>CPU</span>
+              <strong>24%</strong>
+              <i style="--value: 24%"></i>
+            </div>
+            <div>
+              <span>RAM</span>
+              <strong>61%</strong>
+              <i style="--value: 61%"></i>
+            </div>
+          </div>
+          <div class="showcase-footer">
+            <span><i class="live-dot"></i><span data-i18n="liveMonitoring">Live monitoring</span></span>
+            <span>arm64</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="repo-stats shell" aria-label="Repository statistics">
+      <div>
+        <span data-i18n="statPackages">Packages</span>
+        <strong id="package-count">1</strong>
+      </div>
+      <div>
+        <span data-i18n="statCompatibility">Compatibility</span>
+        <strong>iOS 14–17</strong>
+      </div>
+      <div>
+        <span data-i18n="statEnvironment">Environment</span>
+        <strong>Rootless</strong>
+      </div>
+      <div>
+        <span data-i18n="statArchitecture">Architecture</span>
+        <strong>arm64</strong>
+      </div>
+    </section>
+
+    <section class="packages-section shell" id="packages">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker" data-i18n="packagesKicker">Repository catalog</span>
+          <h2 data-i18n="packagesTitle">Packages</h2>
+          <p data-i18n="packagesDescription">Select a package to see its version, requirements and complete description.</p>
+        </div>
+        <label class="search-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="package-search" type="search" autocomplete="off" data-i18n-placeholder="searchPlaceholder" placeholder="Search packages">
+        </label>
+      </div>
+
+      <div class="package-grid" id="package-grid" aria-live="polite">
+        <article class="package-card package-card-loading">
+          <div class="skeleton skeleton-icon"></div>
+          <div class="skeleton skeleton-line skeleton-wide"></div>
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-button"></div>
+        </article>
+      </div>
+      <div class="empty-state" id="empty-state" hidden>
+        <span>⌕</span>
+        <h3 data-i18n="emptyTitle">Nothing found</h3>
+        <p data-i18n="emptyText">Try a different package name or identifier.</p>
+      </div>
+    </section>
+
+    <section class="about-section shell" id="about">
+      <div class="about-copy">
+        <span class="section-kicker">iFetch</span>
+        <h2 data-i18n="aboutTitle">Your iPhone, explained.</h2>
+        <p data-i18n="aboutText">iFetch combines native system information with live charts, process inspection, jailbreak health checks, network details, WidgetKit widgets and an SSH-friendly CLI.</p>
+        <div class="feature-list">
+          <span data-i18n="featureWidgets">Native widgets</span>
+          <span data-i18n="featureProcesses">Process manager</span>
+          <span data-i18n="featureCrashes">Crash reports</span>
+          <span data-i18n="featureNetwork">Network monitor</span>
+          <span data-i18n="featureControlCenter">Control Center</span>
+          <span data-i18n="featureCLI">Terminal CLI</span>
+        </div>
+      </div>
+      <div class="screenshots" id="screenshots">
+        <img src="assets/en1.png" data-en-src="assets/en1.png" data-ru-src="assets/ru1.png" alt="iFetch overview">
+        <img src="assets/en2.png" data-en-src="assets/en2.png" data-ru-src="assets/ru2.png" alt="iFetch diagnostics">
+      </div>
+    </section>
+
+    <section class="install-section shell">
+      <div>
+        <span class="section-kicker" data-i18n="installKicker">Ready to install</span>
+        <h2 data-i18n="installTitle">Add the source once. Updates appear automatically.</h2>
+      </div>
+      <a class="button button-primary" href="sileo://source/https://weekanya.github.io/iFetch/">
+        <span data-i18n="openSileo">Open in Sileo</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+      </a>
+    </section>
+  </main>
+
+  <footer class="site-footer shell">
+    <div class="brand footer-brand">
+      <img src="CydiaIcon.png" alt="">
+      <span>
+        <strong>weekanya</strong>
+        <small data-i18n="footerText">Rootless iOS Repository</small>
+      </span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/weekanya/iFetch" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="Release">Release</a>
+      <a href="Packages">Packages</a>
+    </div>
+  </footer>
+
+  <div class="package-modal" id="package-modal" hidden>
+    <button class="modal-backdrop" type="button" data-close-modal aria-label="Close"></button>
+    <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" type="button" data-close-modal aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+      <div class="modal-hero">
+        <img id="modal-icon" src="ifetch-icon.png" alt="">
+        <div>
+          <span class="section-kicker" id="modal-section">Utilities</span>
+          <h2 id="modal-title">iFetch</h2>
+          <p id="modal-identifier">com.wee1ka.ifetch</p>
+        </div>
+        <span class="version-pill" id="modal-version">3.1.0</span>
+      </div>
+      <p class="modal-description" id="modal-description"></p>
+      <dl class="package-metadata" id="modal-metadata"></dl>
+      <div class="modal-actions">
+        <a class="button button-primary" id="modal-download" href="#">
+          <span data-i18n="downloadDeb">Download .deb</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 19h14"/></svg>
+        </a>
+        <a class="button button-secondary" id="modal-depiction" href="sileodepiction.json" target="_blank" rel="noreferrer">
+          <span data-i18n="viewDepiction">View depiction</span>
+        </a>
+      </div>
+      <div class="modal-gallery" id="modal-gallery">
+        <img src="assets/en1.png" data-en-src="assets/en1.png" data-ru-src="assets/ru1.png" alt="iFetch overview">
+        <img src="assets/en2.png" data-en-src="assets/en2.png" data-ru-src="assets/ru2.png" alt="iFetch diagnostics">
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
 </body>
 </html>
