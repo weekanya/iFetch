@@ -10,6 +10,8 @@
     <true/>
     <key>com.apple.developer.networking.wifi-info</key>
     <true/>
+    <key>com.apple.wifi.manager-access</key>
+    <true/>
     <key>com.apple.private.MobileGestalt.AllowedProtectedKeys</key>
     <array>
         <string>BatteryCycleCount</string>
