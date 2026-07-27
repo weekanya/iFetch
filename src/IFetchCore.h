@@ -33,8 +33,11 @@ typedef NS_ENUM(NSInteger, IFLanguage) {
 
 @property (nonatomic, assign) pid_t pid;
 @property (nonatomic, copy) NSString *name;
+@property (nonatomic, copy) NSString *executablePath;
 @property (nonatomic, assign) uint64_t residentBytes;
 @property (nonatomic, assign) double cpuPercent;
+@property (nonatomic, assign) NSInteger threadCount;
+@property (nonatomic, assign) NSTimeInterval runningTime;
 
 @end
 
@@ -42,6 +45,7 @@ typedef NS_ENUM(NSInteger, IFLanguage) {
 
 - (NSArray<IFProcessSample *> *)topProcessesByMemory:(NSUInteger)limit;
 - (NSArray<IFProcessSample *> *)topProcessesByCPU:(NSUInteger)limit;
+- (NSArray<IFProcessSample *> *)allProcesses;
 - (void)refresh;
 
 @end
