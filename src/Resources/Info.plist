@@ -26,9 +26,9 @@
         <string>iPhoneOS</string>
     </array>
     <key>CFBundleVersion</key>
-    <string>210</string>
+    <string>300</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.1.0</string>
+    <string>3.0.0</string>
     <key>MinimumOSVersion</key>
     <string>14.0</string>
     <key>LSRequiresIPhoneOS</key>
