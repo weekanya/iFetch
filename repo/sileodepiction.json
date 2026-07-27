@@ -1,0 +1,43 @@
+{
+    "minVersion": "0.1",
+    "headerImage": "https://weebio.ru/sfc/ifetch-banner.png",
+    "tintColor": "#007AFF",
+    "tabs": [
+        {
+            "tabname": "Описание",
+            "views": [
+                {
+                    "class": "DepictionMarkdownView",
+                    "markdown": "### Нативный системный дашборд и CLI\nМониторинг jailbreak-устройства на iOS 14–17: реальные характеристики, процессы, сеть и среда хук-инжектора. В комплекте консольная команда `ifetch` для SSH и NewTerm."
+                },
+                {
+                    "class": "DepictionSeparatorView"
+                },
+                {
+                    "class": "DepictionHeaderView",
+                    "title": "Возможности"
+                },
+                {
+                    "class": "DepictionMarkdownView",
+                    "markdown": "- Автоопределение поддерживаемых моделей iPhone\n- Top-3 процессов по ОЗУ и CPU\n- Скорость сети, DNS, VPN, локальный и публичный IP\n- Версия ElleKit, Substrate, libhooker или Substitute\n- Новые crash-логи за 24 часа\n- Безопасные системные действия с подтверждением\n- CLI-команда `ifetch`"
+                }
+            ],
+            "class": "DepictionStackView"
+        },
+        {
+            "tabname": "Чейнджлог",
+            "views": [
+                {
+                    "class": "DepictionSubheaderView",
+                    "title": "Версия 2.1.0"
+                },
+                {
+                    "class": "DepictionMarkdownView",
+                    "markdown": "- Английский интерфейс по умолчанию\n- Переключение между English и Русским в настройках\n- Выбранный язык используется приложением и CLI\n- Поддержка iOS 14–17 и arm64/arm64e-устройств\n- Отдельные изображения всех поддерживаемых моделей\n- Мониторинг процессов, сети и jailbreak-среды\n- Консольная команда `ifetch`\n- Исправленные системные действия и адаптивная вёрстка"
+                }
+            ],
+            "class": "DepictionStackView"
+        }
+    ],
+    "class": "DepictionTabView"
+}
