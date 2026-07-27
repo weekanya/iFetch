@@ -108,7 +108,7 @@ make clean package FINALPACKAGE=1
 Готовый пакет появится по адресу:
 
 ```text
-packages/com.wee1ka.ifetch_3.0.1_iphoneos-arm64.deb
+packages/com.wee1ka.ifetch_3.0.2_iphoneos-arm64.deb
 ```
 
 Проверка проекта:
