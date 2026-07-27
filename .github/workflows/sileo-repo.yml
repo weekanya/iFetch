@@ -37,7 +37,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh workflow run sileo-repo.yml --ref main -f release_tag="$RELEASE_TAG"
+        run: >
+          gh workflow run sileo-repo.yml
+          --repo "$GITHUB_REPOSITORY"
+          --ref main
+          -f release_tag="$RELEASE_TAG"
 
   build:
     if: github.event_name != 'release'
