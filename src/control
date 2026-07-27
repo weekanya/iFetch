@@ -1,9 +1,9 @@
 Package: com.wee1ka.ifetch
 Name: iFetch
-Depends: mobilesubstrate
-Version: 1.0.3
+Depends: firmware (>= 14.0), firmware (<< 18.0), mobilesubstrate
+Version: 2.0.0
 Architecture: iphoneos-arm64
-Description: Нативный системный монитор для iOS
+Description: Системный монитор и CLI fetch для jailbreak-устройств на iOS 14–17
 Maintainer: wee1ka
 Author: wee1ka
 Section: Utilities
