@@ -5,4 +5,4 @@ packages/
 rootful/packages/
 *.deb
 *.dSYM/
-docs
+docs/
