@@ -10,6 +10,48 @@
 #import <sys/sysctl.h>
 #import <unistd.h>
 
+static NSString *const IFLanguagePreferenceKey = @"IFetchLanguage";
+static NSString *const IFLanguageDefaultsSuite = @"com.wee1ka.ifetch";
+static NSString *const IFLanguagePreferencesPath = @"/var/mobile/Library/Preferences/com.wee1ka.ifetch.plist";
+
+@implementation IFLanguageManager
+
++ (NSUserDefaults *)defaults {
+    return [[NSUserDefaults alloc] initWithSuiteName:IFLanguageDefaultsSuite];
+}
+
++ (IFLanguage)currentLanguage {
+    NSString *storedLanguage = [NSDictionary dictionaryWithContentsOfFile:IFLanguagePreferencesPath][IFLanguagePreferenceKey];
+    if (storedLanguage.length == 0) {
+        storedLanguage = [[self defaults] stringForKey:IFLanguagePreferenceKey];
+    }
+    return [storedLanguage isEqualToString:@"ru"] ? IFLanguageRussian : IFLanguageEnglish;
+}
+
++ (void)setCurrentLanguage:(IFLanguage)language {
+    NSString *languageCode = language == IFLanguageRussian ? @"ru" : @"en";
+    NSUserDefaults *defaults = [self defaults];
+    [defaults setObject:languageCode forKey:IFLanguagePreferenceKey];
+    [defaults synchronize];
+
+    NSMutableDictionary *preferences = [[NSDictionary dictionaryWithContentsOfFile:IFLanguagePreferencesPath] mutableCopy];
+    if (preferences == nil) {
+        preferences = [NSMutableDictionary dictionary];
+    }
+    preferences[IFLanguagePreferenceKey] = languageCode;
+    [preferences writeToFile:IFLanguagePreferencesPath atomically:YES];
+}
+
++ (BOOL)isRussian {
+    return [self currentLanguage] == IFLanguageRussian;
+}
+
++ (NSString *)english:(NSString *)english russian:(NSString *)russian {
+    return [self isRussian] ? russian : english;
+}
+
+@end
+
 static NSString *IFHardwareIdentifier(void) {
     size_t size = 0;
     if (sysctlbyname("hw.machine", NULL, &size, NULL, 0) != 0 || size == 0) {
@@ -54,7 +96,7 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
             @"iPhone12,1": @{@"name": @"iPhone 11",       @"chip": @"Apple A13 Bionic", @"image": @"iphone-11.png"},
             @"iPhone12,3": @{@"name": @"iPhone 11 Pro",   @"chip": @"Apple A13 Bionic", @"image": @"iphone-11-pro.png"},
             @"iPhone12,5": @{@"name": @"iPhone 11 Pro Max", @"chip": @"Apple A13 Bionic", @"image": @"iphone-11-pro-max.png"},
-            @"iPhone12,8": @{@"name": @"iPhone SE (2-го поколения)", @"chip": @"Apple A13 Bionic", @"image": @"iphone-se-2.png"},
+            @"iPhone12,8": @{@"name": @"iPhone SE (2nd generation)", @"name_ru": @"iPhone SE (2-го поколения)", @"chip": @"Apple A13 Bionic", @"image": @"iphone-se-2.png"},
             @"iPhone13,1": @{@"name": @"iPhone 12 mini",  @"chip": @"Apple A14 Bionic", @"image": @"iphone-12-mini.png"},
             @"iPhone13,2": @{@"name": @"iPhone 12",       @"chip": @"Apple A14 Bionic", @"image": @"iphone-12.png"},
             @"iPhone13,3": @{@"name": @"iPhone 12 Pro",   @"chip": @"Apple A14 Bionic", @"image": @"iphone-12-pro.png"},
@@ -63,7 +105,7 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
             @"iPhone14,5": @{@"name": @"iPhone 13",       @"chip": @"Apple A15 Bionic", @"image": @"iphone-13.png"},
             @"iPhone14,2": @{@"name": @"iPhone 13 Pro",   @"chip": @"Apple A15 Bionic", @"image": @"iphone-13-pro.png"},
             @"iPhone14,3": @{@"name": @"iPhone 13 Pro Max", @"chip": @"Apple A15 Bionic", @"image": @"iphone-13-pro-max.png"},
-            @"iPhone14,6": @{@"name": @"iPhone SE (3-го поколения)", @"chip": @"Apple A15 Bionic", @"image": @"iphone-se-3.png"},
+            @"iPhone14,6": @{@"name": @"iPhone SE (3rd generation)", @"name_ru": @"iPhone SE (3-го поколения)", @"chip": @"Apple A15 Bionic", @"image": @"iphone-se-3.png"},
             @"iPhone14,7": @{@"name": @"iPhone 14",       @"chip": @"Apple A15 Bionic", @"image": @"iphone-14.png"},
             @"iPhone14,8": @{@"name": @"iPhone 14 Plus",  @"chip": @"Apple A15 Bionic", @"image": @"iphone-14-plus.png"},
             @"iPhone15,2": @{@"name": @"iPhone 14 Pro",   @"chip": @"Apple A16 Bionic", @"image": @"iphone-14-pro.png"},
@@ -92,8 +134,8 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
     IFDeviceInfo *device = [[self alloc] init];
     device.identifier = IFHardwareIdentifier();
     NSDictionary *entry = IFDeviceCatalog()[device.identifier];
-    device.modelName = entry[@"name"] ?: device.identifier;
-    device.chipName = entry[@"chip"] ?: @"Неизвестно";
+    device.modelName = ([IFLanguageManager isRussian] ? entry[@"name_ru"] : nil) ?: entry[@"name"] ?: device.identifier;
+    device.chipName = entry[@"chip"] ?: [IFLanguageManager english:@"Unknown" russian:@"Неизвестно"];
     NSString *imageFile = entry[@"image"] ?: @"iphone-generic.png";
     device.imageName = [@"DevicePhotos" stringByAppendingPathComponent:imageFile];
     device.systemVersion = [NSProcessInfo processInfo].operatingSystemVersionString;
@@ -280,7 +322,9 @@ static NSDictionary<NSString *, NSNumber *> *IFNetworkByteTotals(void) {
 static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) != 0) {
-        return @{@"ip": @"Недоступно", @"interface": @"Нет", @"vpn": @"Нет"};
+        NSString *unavailable = [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
+        NSString *none = [IFLanguageManager english:@"None" russian:@"Нет"];
+        return @{@"ip": unavailable, @"interface": none, @"vpn": none};
     }
 
     NSString *preferredIP = nil;
@@ -323,9 +367,9 @@ static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
     freeifaddrs(interfaces);
 
     return @{
-        @"ip": preferredIP ?: fallbackIP ?: @"Недоступно",
-        @"interface": preferredInterface ?: fallbackInterface ?: @"Нет",
-        @"vpn": vpnInterface ?: @"Нет"
+        @"ip": preferredIP ?: fallbackIP ?: [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"],
+        @"interface": preferredInterface ?: fallbackInterface ?: [IFLanguageManager english:@"None" russian:@"Нет"],
+        @"vpn": vpnInterface ?: [IFLanguageManager english:@"None" russian:@"Нет"]
     };
 }
 
@@ -411,7 +455,7 @@ static NSArray<NSString *> *IFDNSServers(void) {
     configuration.timeoutIntervalForResource = 5;
     NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration];
     [[session dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        NSString *address = @"Недоступно";
+        NSString *address = [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
         if (data != nil && error == nil) {
             NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             NSString *candidate = [json isKindOfClass:[NSDictionary class]] ? json[@"ip"] : nil;
@@ -506,6 +550,10 @@ static NSInteger IFRecentCrashCount(void) {
 
 @implementation IFetchCore
 
++ (NSString *)versionString {
+    return @"2.1.0";
+}
+
 + (uint64_t)totalMemoryBytes {
     return [NSProcessInfo processInfo].physicalMemory;
 }
@@ -557,30 +605,35 @@ static NSInteger IFRecentCrashCount(void) {
     size_t size = sizeof(bootTime);
     int mib[2] = {CTL_KERN, KERN_BOOTTIME};
     if (sysctl(mib, 2, &bootTime, &size, NULL, 0) != 0) {
-        return @"Недоступно";
+        return [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
     }
 
     NSTimeInterval uptime = MAX(0, [[NSDate date] timeIntervalSince1970] - bootTime.tv_sec);
     NSInteger days = (NSInteger)(uptime / 86400);
     NSInteger hours = ((NSInteger)uptime % 86400) / 3600;
     NSInteger minutes = ((NSInteger)uptime % 3600) / 60;
+    if ([IFLanguageManager isRussian]) {
+        return days > 0
+            ? [NSString stringWithFormat:@"%ldд %ldч %ldмин", (long)days, (long)hours, (long)minutes]
+            : [NSString stringWithFormat:@"%ldч %ldмин", (long)hours, (long)minutes];
+    }
     return days > 0
-        ? [NSString stringWithFormat:@"%ldд %ldч %ldмин", (long)days, (long)hours, (long)minutes]
-        : [NSString stringWithFormat:@"%ldч %ldмин", (long)hours, (long)minutes];
+        ? [NSString stringWithFormat:@"%ldd %ldh %ldm", (long)days, (long)hours, (long)minutes]
+        : [NSString stringWithFormat:@"%ldh %ldm", (long)hours, (long)minutes];
 }
 
 + (NSString *)darwinVersion {
     size_t size = 0;
     if (sysctlbyname("kern.osrelease", NULL, &size, NULL, 0) != 0 || size == 0) {
-        return @"Недоступно";
+        return [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
     }
     char *buffer = calloc(size, sizeof(char));
     if (buffer == NULL) {
-        return @"Недоступно";
+        return [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
     }
-    NSString *result = @"Недоступно";
+    NSString *result = [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
     if (sysctlbyname("kern.osrelease", buffer, &size, NULL, 0) == 0) {
-        result = [NSString stringWithUTF8String:buffer] ?: @"Недоступно";
+        result = [NSString stringWithUTF8String:buffer] ?: [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
     }
     free(buffer);
     return result;
@@ -630,7 +683,7 @@ static NSInteger IFRecentCrashCount(void) {
     } else if ([[NSFileManager defaultManager] fileExistsAtPath:@"/Library/MobileSubstrate"]) {
         info.environmentName = @"Rootful";
     } else {
-        info.environmentName = @"Не обнаружен";
+        info.environmentName = [IFLanguageManager english:@"Not detected" russian:@"Не обнаружен"];
     }
 
     NSDictionary *injectors = @{
@@ -653,7 +706,7 @@ static NSInteger IFRecentCrashCount(void) {
         }
     }
     if (info.injectorDescription.length == 0) {
-        info.injectorDescription = @"Не обнаружен";
+        info.injectorDescription = [IFLanguageManager english:@"Not detected" russian:@"Не обнаружен"];
     }
     return info;
 }
@@ -668,20 +721,27 @@ static NSInteger IFRecentCrashCount(void) {
 }
 
 + (NSString *)formatBytes:(uint64_t)bytes {
-    NSByteCountFormatter *formatter = [[NSByteCountFormatter alloc] init];
-    formatter.countStyle = NSByteCountFormatterCountStyleBinary;
-    formatter.allowedUnits = NSByteCountFormatterUseMB | NSByteCountFormatterUseGB | NSByteCountFormatterUseTB;
-    return [formatter stringFromByteCount:(long long)bytes];
+    BOOL russian = [IFLanguageManager isRussian];
+    if (bytes >= 1024ULL * 1024ULL * 1024ULL * 1024ULL) {
+        return [NSString stringWithFormat:russian ? @"%.1f ТБ" : @"%.1f TB",
+                bytes / (1024.0 * 1024.0 * 1024.0 * 1024.0)];
+    }
+    if (bytes >= 1024ULL * 1024ULL * 1024ULL) {
+        return [NSString stringWithFormat:russian ? @"%.1f ГБ" : @"%.1f GB",
+                bytes / (1024.0 * 1024.0 * 1024.0)];
+    }
+    return [NSString stringWithFormat:russian ? @"%.1f МБ" : @"%.1f MB",
+            bytes / (1024.0 * 1024.0)];
 }
 
 + (NSString *)formatRate:(double)bytesPerSecond {
     if (bytesPerSecond < 1024) {
-        return [NSString stringWithFormat:@"%.0f Б/с", bytesPerSecond];
+        return [NSString stringWithFormat:[IFLanguageManager isRussian] ? @"%.0f Б/с" : @"%.0f B/s", bytesPerSecond];
     }
     if (bytesPerSecond < 1024 * 1024) {
-        return [NSString stringWithFormat:@"%.1f КБ/с", bytesPerSecond / 1024.0];
+        return [NSString stringWithFormat:[IFLanguageManager isRussian] ? @"%.1f КБ/с" : @"%.1f KB/s", bytesPerSecond / 1024.0];
     }
-    return [NSString stringWithFormat:@"%.1f МБ/с", bytesPerSecond / (1024.0 * 1024.0)];
+    return [NSString stringWithFormat:[IFLanguageManager isRussian] ? @"%.1f МБ/с" : @"%.1f MB/s", bytesPerSecond / (1024.0 * 1024.0)];
 }
 
 @end
