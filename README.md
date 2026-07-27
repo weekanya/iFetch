@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://weebio.ru/sfc/ifetch-banner.png" alt="iFetch" width="100%">
+  <img src="https://weekanya.github.io/iFetch/ifetch-banner.png" alt="iFetch" width="100%">
 </div>
 
 <div align="center">
@@ -8,9 +8,9 @@
 
 # iFetch
 
-iFetch is a system monitor for iPhones running a rootless jailbreak on
-iOS 14–17. It shows device information, helps identify resource-heavy
-processes, and keeps the most useful jailbreak details in one place.
+iFetch is a diagnostics toolkit for iPhones running a rootless jailbreak on
+iOS 14–17. It combines a native system dashboard, process explorer, crash-log
+viewer, tweak inspection, a Control Center module, and a command-line client.
 
 The interface is built with UIKit and follows the look of the native iOS
 Settings app. The package also installs the `ifetch` command for NewTerm and
@@ -29,13 +29,19 @@ and the command-line tool.
 
 - iPhone model, hardware identifier, chip, architecture, and Darwin version;
 - memory and storage usage;
-- battery level, charging state, and cycle count;
+- battery health, real and design capacity, temperature, voltage, current,
+  charging power, and cycle count;
 - system uptime and thermal state;
-- Top-3 processes by memory and CPU usage;
+- live CPU, memory, network, battery-level, and temperature charts;
+- process explorer with PID, executable path, threads, uptime, and injected
+  tweak information;
 - real-time download and upload speed;
-- local and public IP addresses, DNS servers, active interface, and VPN;
+- IPv4/IPv6, local and public IP addresses, DNS, Wi-Fi, cellular technology,
+  active interface, VPN, per-interface traffic, and latency;
 - jailbreak environment and installed hook injector;
-- installed packages, active tweaks, and crash logs from the last 24 hours.
+- Jailbreak Health checks with clear warning states;
+- searchable installed-tweak list with package versions and injection filters;
+- crash-log browsing, previewing, copying, and sharing.
 
 iFetch detects ElleKit, Cydia Substrate, libhooker, and Substitute. Models from
 the iPhone 6s through the iPhone 15 Pro Max are supported, with a separate
@@ -49,7 +55,7 @@ The app can perform:
 - icon cache refresh;
 - Safe Mode;
 - Userspace Reboot;
-- system report export.
+- full or privacy-redacted system report export.
 
 Actions that can interrupt the current session require confirmation. iFetch
 also reports missing commands and execution errors instead of silently failing.
@@ -63,7 +69,24 @@ ifetch
 ```
 
 The command prints an ASCII logo followed by device, jailbreak, network,
-memory, storage, and process information.
+memory, storage, battery, and process information. It also supports scripting
+and live monitoring:
+
+```sh
+ifetch --watch
+ifetch --json
+ifetch --processes 10
+ifetch --network
+ifetch --battery
+ifetch --lang ru
+ifetch --no-color
+```
+
+## Control Center
+
+Version 3.0 includes an optional iFetch module showing CPU, RAM, network speed,
+and battery temperature. CCSupport is recommended so the module can be added
+to the Control Center layout.
 
 ## Compatibility
 
@@ -86,7 +109,7 @@ make clean package FINALPACKAGE=1
 The finished package is written to:
 
 ```text
-packages/com.wee1ka.ifetch_2.1.0_iphoneos-arm64.deb
+packages/com.wee1ka.ifetch_3.0.0_iphoneos-arm64.deb
 ```
 
 Run the project checks with:
@@ -108,8 +131,12 @@ unavailable, iFetch displays `Unavailable`.
 ## Source layout
 
 - `IFetchCore.m` — shared system monitoring logic;
+- `IFDiagnostics.m` — battery, crash, tweak, health, network, and history data;
 - `RootViewController.m` — UIKit interface;
+- `DiagnosticsViewController.m` — diagnostics screens and live charts;
 - `cli/main.m` — command-line version;
+- `CCModule` — Control Center module;
+- `Resources/device_catalog.json` — supported device metadata;
 - `Resources/DevicePhotos` — device images;
 - `artwork` — source device atlases;
 - `scripts/process_device_atlases.sh` — atlas processing script.
