@@ -1,11 +1,12 @@
 Package: com.wee1ka.ifetch
 Name: iFetch
 Depends: firmware (>= 14.0), firmware (<< 18.0), mobilesubstrate
-Version: 2.1.0
+Recommends: com.opa334.ccsupport
+Version: 3.0.0
 Architecture: iphoneos-arm64
-Description: Системный монитор и CLI fetch для jailbreak-устройств на iOS 14–17
+Description: Advanced system diagnostics, process monitor and CLI fetch for rootless jailbreak devices on iOS 14–17
 Maintainer: wee1ka
 Author: wee1ka
 Section: Utilities
-Icon: https://weebio.ru/sfc/ifetch-icon.png
-SileoDepiction: https://weebio.ru/sfc/sileodepiction.json
+Icon: https://weekanya.github.io/iFetch/ifetch-icon.png
+SileoDepiction: https://weekanya.github.io/iFetch/sileodepiction.json
