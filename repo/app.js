@@ -333,9 +333,10 @@ function fillModal(item) {
   download.href = absoluteAsset(item.Filename);
   download.hidden = !item.Filename;
 
+  const depictionValue = item.SileoDepiction || item.Sileodepiction || item.Depiction;
   const depiction = document.getElementById("modal-depiction");
-  depiction.href = absoluteAsset(item.SileoDepiction || item.Depiction);
-  depiction.hidden = !(item.SileoDepiction || item.Depiction);
+  depiction.href = absoluteAsset(depictionValue);
+  depiction.hidden = !depictionValue;
 
   document.getElementById("modal-gallery").hidden = item.Package !== "com.wee1ka.ifetch";
 }
