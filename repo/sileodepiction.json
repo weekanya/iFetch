@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 3.0.0"
+          "title": "Version 3.0.1"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "A complete diagnostics update with new monitoring screens, expanded CLI, Control Center integration, privacy controls, externalized localization and device metadata, and more efficient background behavior."
+          "markdown": "- Fixed Wi-Fi SSID and BSSID detection\n- Added the required location permission request\n- Reworked internet availability and HTTPS latency checks\n- Added readable network error messages\n- Added a clear status for devices without an active cellular service\n\nIncludes all diagnostics, CLI, privacy, and Control Center features introduced in iFetch 3.0."
         }
       ],
       "class": "DepictionStackView"
