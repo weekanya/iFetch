@@ -179,8 +179,10 @@ static void IFPrintSnapshot(NSDictionary *snapshot, BOOL color, NSUInteger proce
 }
 
 static void IFPrintHelp(void) {
-    printf("iFetch 3.0.0\n"
-           "Usage: ifetch [options]\n\n"
+    printf("iFetch %s\n"
+           "Usage: ifetch [options]\n\n",
+           [IFetchCore versionString].UTF8String);
+    printf(
            "  --json              Output machine-readable JSON\n"
            "  --watch              Refresh continuously\n"
            "  --interval SECONDS   Watch refresh interval (default: 1)\n"
