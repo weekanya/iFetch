@@ -2,7 +2,7 @@
 
 #import <SystemConfiguration/CaptiveNetwork.h>
 #import <NetworkExtension/NetworkExtension.h>
-#import <arpa/inet.h>Ф
+#import <arpa/inet.h>
 #import <dlfcn.h>
 #import <ifaddrs.h>
 #import <mach/mach.h>

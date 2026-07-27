@@ -102,7 +102,7 @@ CCSupport.
 Для сборки нужен Theos и iOS SDK 16.5 или новее:
 
 ```sh
-make clean package FINALPACKAGE=1
+make -C src clean package FINALPACKAGE=1
 ```
 
 Готовый пакет появится по адресу:
@@ -114,7 +114,7 @@ packages/com.wee1ka.ifetch_3.0.2_iphoneos-arm64.deb
 Проверка проекта:
 
 ```sh
-scripts/validate_project.sh
+src/scripts/validate_project.sh
 ```
 
 ## Доступ к системе и приватность
@@ -129,16 +129,19 @@ entitlements. Они нужны для чтения процессов, данн
 
 ## Структура исходного кода
 
-- `IFetchCore.m` — общая логика системного мониторинга;
-- `IFDiagnostics.m` — батарея, crash-логи, твики, сеть и история метрик;
-- `RootViewController.m` — интерфейс UIKit;
-- `DiagnosticsViewController.m` — диагностические экраны и графики;
-- `cli/main.m` — консольная версия;
-- `CCModule` — модуль Control Center;
-- `Resources/device_catalog.json` — данные поддерживаемых устройств;
-- `Resources/DevicePhotos` — изображения устройств;
-- `artwork` — исходные атласы устройств;
-- `scripts/process_device_atlases.sh` — скрипт обработки атласов.
+- `src/app` — приложение UIKit и его экраны;
+- `src/core` — общая логика мониторинга и диагностики;
+- `src/cli` — консольная версия;
+- `src/control-center` — модуль CCSupport;
+- `src/resources` — ресурсы приложения, локализация, каталог и изображения устройств;
+- `src/packaging` — entitlements и метаданные модуля Control Center;
+- `src/artwork` — исходные атласы устройств;
+- `src/scripts` — проверка проекта и обработка изображений;
+- `docs/releases` — описания выпусков;
+- `repo` — исходные файлы репозитория Sileo;
+
+В каталоге `src` также находятся `Makefile` Theos и файл пакета `control`,
+поэтому всё, что относится к приложению, собрано в одном месте.
 
 ## Лицензия
 

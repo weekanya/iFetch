@@ -2,16 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Делает приложение системным -->
     <key>platform-application</key>
     <true/>
+    <!-- Отключает ограничения песочницы -->
     <key>com.apple.private.security.no-sandbox</key>
     <true/>
     <key>com.apple.private.security.no-container</key>
     <true/>
+    <!-- Позволяет показывать SSID/BSSID активной Wi-Fi сети. -->
     <key>com.apple.developer.networking.wifi-info</key>
     <true/>
+    <!-- Доступ к MobileWiFi нужен как резервный путь на rootless-джейлбрейках. -->
     <key>com.apple.wifi.manager-access</key>
     <true/>
+    <!-- Разрешает читать защищенные данные (АКБ) -->
     <key>com.apple.private.MobileGestalt.AllowedProtectedKeys</key>
     <array>
         <string>BatteryCycleCount</string>

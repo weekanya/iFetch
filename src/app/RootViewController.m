@@ -1,6 +1,6 @@
 #import "RootViewController.h"
-#import "IFetchCore.h"
-#import "IFDiagnostics.h"
+#import "../core/IFetchCore.h"
+#import "../core/IFDiagnostics.h"
 #import "DiagnosticsViewController.h"
 
 #import <spawn.h>

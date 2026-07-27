@@ -103,7 +103,7 @@ The executable uses a compatible `arm64` slice and also runs on devices with
 Theos and the iOS 16.5 SDK or newer are required:
 
 ```sh
-make clean package FINALPACKAGE=1
+make -C src clean package FINALPACKAGE=1
 ```
 
 The finished package is written to:
@@ -115,7 +115,7 @@ packages/com.wee1ka.ifetch_3.0.2_iphoneos-arm64.deb
 Run the project checks with:
 
 ```sh
-scripts/validate_project.sh
+src/scripts/validate_project.sh
 ```
 
 ## System access and privacy
@@ -130,16 +130,19 @@ unavailable, iFetch displays `Unavailable`.
 
 ## Source layout
 
-- `IFetchCore.m` — shared system monitoring logic;
-- `IFDiagnostics.m` — battery, crash, tweak, health, network, and history data;
-- `RootViewController.m` — UIKit interface;
-- `DiagnosticsViewController.m` — diagnostics screens and live charts;
-- `cli/main.m` — command-line version;
-- `CCModule` — Control Center module;
-- `Resources/device_catalog.json` — supported device metadata;
-- `Resources/DevicePhotos` — device images;
-- `artwork` — source device atlases;
-- `scripts/process_device_atlases.sh` — atlas processing script.
+- `src/app` — UIKit application and screens;
+- `src/core` — shared system monitoring and diagnostics;
+- `src/cli` — command-line version;
+- `src/control-center` — CCSupport module;
+- `src/resources` — application resources, localization, device catalog, and images;
+- `src/packaging` — entitlements and Control Center bundle metadata;
+- `src/artwork` — source device atlases;
+- `src/scripts` — project validation and artwork processing tools;
+- `docs/releases` — release notes;
+- `repo` — source files for the Sileo repository;
+
+The `src` directory also contains the Theos `Makefile` and package `control`
+file, keeping everything related to the application in one place.
 
 ## License
 

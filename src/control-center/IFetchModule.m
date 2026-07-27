@@ -3,8 +3,8 @@
 #import <ControlCenterUIKit/CCUIContentModuleContentViewController-Protocol.h>
 #import <objc/message.h>
 
-#import "../IFDiagnostics.h"
-#import "../IFetchCore.h"
+#import "../core/IFDiagnostics.h"
+#import "../core/IFetchCore.h"
 
 @interface IFetchModuleViewController : UIViewController <CCUIContentModuleContentViewController>
 @property (nonatomic, strong) UILabel *titleLabel;

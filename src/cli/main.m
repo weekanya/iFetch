@@ -1,8 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <unistd.h>
 
-#import "IFDiagnostics.h"
-#import "IFetchCore.h"
+#import "../core/IFDiagnostics.h"
+#import "../core/IFetchCore.h"
 
 static NSString *IFT(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];

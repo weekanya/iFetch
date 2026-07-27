@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-output_dir="${project_dir}/Resources/DevicePhotos"
+output_dir="${project_dir}/resources/DevicePhotos"
 chroma_helper="/home/wee/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "${work_dir}"' EXIT
@@ -59,4 +59,3 @@ process_atlas "${project_dir}/artwork/device-atlas-04.png" \
     iphone-15.png iphone-15-plus.png iphone-15-pro.png iphone-15-pro-max.png
 
 cp "${output_dir}/iphone-x.png" "${output_dir}/iphone-generic.png"
-
