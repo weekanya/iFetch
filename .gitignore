@@ -1,10 +1,7 @@
-.theos/
-packages/
-_/
-*.deb
-
 .DS_Store
-
-.vscode/
-*.swp
-*~
+.theos/
+rootful/.theos/
+packages/
+rootful/packages/
+*.deb
+*.dSYM/
