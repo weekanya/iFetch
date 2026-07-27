@@ -1,6 +1,7 @@
 #import "IFDiagnostics.h"
 
 #import <SystemConfiguration/CaptiveNetwork.h>
+#import <NetworkExtension/NetworkExtension.h>
 #import <arpa/inet.h>
 #import <dlfcn.h>
 #import <ifaddrs.h>
@@ -46,6 +47,81 @@ static NSNumber *IFNumberForKeys(NSDictionary *dictionary, NSArray<NSString *> *
         }
     }
     return nil;
+}
+
+static NSDictionary<NSString *, NSString *> *IFCurrentWiFiInfo(void) {
+    __block NSString *ssid = @"";
+    __block NSString *bssid = @"";
+
+    if (@available(iOS 14.0, *)) {
+        if ([NEHotspotNetwork respondsToSelector:@selector(fetchCurrentWithCompletionHandler:)]) {
+            dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+            [NEHotspotNetwork fetchCurrentWithCompletionHandler:^(NEHotspotNetwork *network) {
+                ssid = network.SSID ?: @"";
+                bssid = network.BSSID ?: @"";
+                dispatch_semaphore_signal(semaphore);
+            }];
+            dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC));
+        }
+    }
+
+    if (ssid.length == 0) {
+        CFArrayRef supported = CNCopySupportedInterfaces();
+        NSArray *interfaces = CFBridgingRelease(supported) ?: @[];
+        for (NSString *interface in interfaces) {
+            CFDictionaryRef current = CNCopyCurrentNetworkInfo((__bridge CFStringRef)interface);
+            NSDictionary *network = CFBridgingRelease(current);
+            NSString *candidateSSID = network[(NSString *)kCNNetworkInfoKeySSID];
+            if (candidateSSID.length > 0) {
+                ssid = candidateSSID;
+                bssid = network[(NSString *)kCNNetworkInfoKeyBSSID] ?: @"";
+                break;
+            }
+        }
+    }
+    return @{@"ssid": ssid, @"bssid": bssid};
+}
+
+static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
+    NSArray<NSString *> *endpoints = @[
+        @"https://api.ipify.org/",
+        @"https://captive.apple.com/hotspot-detect.html"
+    ];
+    __block NSString *lastError = @"";
+    for (NSString *endpoint in endpoints) {
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+        __block BOOL available = NO;
+        __block double milliseconds = -1;
+        NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
+        configuration.timeoutIntervalForRequest = 5;
+        configuration.timeoutIntervalForResource = 6;
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration];
+        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:endpoint]];
+        request.HTTPMethod = @"GET";
+        request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+        [request setValue:[NSString stringWithFormat:@"iFetch/%@", [IFetchCore versionString]]
+       forHTTPHeaderField:@"User-Agent"];
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        [[session dataTaskWithRequest:request completionHandler:^(__unused NSData *data, NSURLResponse *response, NSError *error) {
+            NSInteger status = [(NSHTTPURLResponse *)response statusCode];
+            available = error == nil && status >= 200 && status < 500;
+            if (available) {
+                milliseconds = (CFAbsoluteTimeGetCurrent() - start) * 1000.0;
+            } else {
+                lastError = error.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld", (long)status];
+            }
+            dispatch_semaphore_signal(semaphore);
+        }] resume];
+        long waitResult = dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 7 * NSEC_PER_SEC));
+        if (waitResult != 0) {
+            lastError = IFD(@"Request timed out", @"Превышено время ожидания");
+        }
+        [session finishTasksAndInvalidate];
+        if (available) {
+            return @{@"available": @YES, @"latency": @(milliseconds), @"endpoint": endpoint, @"error": @""};
+        }
+    }
+    return @{@"available": @NO, @"latency": @(-1), @"endpoint": @"", @"error": lastError};
 }
 
 static NSDictionary *IFBatteryRegistryProperties(void) {
@@ -410,16 +486,9 @@ static double IFSystemCPUPercent(void) {
         freeifaddrs(addresses);
     }
 
-    NSString *ssid = @"";
-    NSString *bssid = @"";
-    for (NSString *interface in (__bridge_transfer NSArray *)CNCopySupportedInterfaces() ?: @[]) {
-        NSDictionary *network = (__bridge_transfer NSDictionary *)CNCopyCurrentNetworkInfo((__bridge CFStringRef)interface);
-        if ([network[(NSString *)kCNNetworkInfoKeySSID] length] > 0) {
-            ssid = network[(NSString *)kCNNetworkInfoKeySSID];
-            bssid = network[(NSString *)kCNNetworkInfoKeyBSSID] ?: @"";
-            break;
-        }
-    }
+    NSDictionary *wifi = IFCurrentWiFiInfo();
+    NSString *ssid = wifi[@"ssid"];
+    NSString *bssid = wifi[@"bssid"];
 
     NSString *radio = @"";
     @try {
@@ -441,25 +510,7 @@ static double IFSystemCPUPercent(void) {
     }
     double dnsMilliseconds = dnsResult == 0 ? (CFAbsoluteTimeGetCurrent() - start) * 1000.0 : -1;
 
-    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-    __block BOOL internetAvailable = NO;
-    __block double internetMilliseconds = -1;
-    NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
-    configuration.timeoutIntervalForRequest = 4;
-    NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration];
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://api.ipify.org"]];
-    request.HTTPMethod = @"HEAD";
-    CFAbsoluteTime requestStart = CFAbsoluteTimeGetCurrent();
-    [[session dataTaskWithRequest:request completionHandler:^(__unused NSData *data, NSURLResponse *response, NSError *error) {
-        NSInteger status = [(NSHTTPURLResponse *)response statusCode];
-        internetAvailable = error == nil && status >= 200 && status < 500;
-        if (internetAvailable) {
-            internetMilliseconds = (CFAbsoluteTimeGetCurrent() - requestStart) * 1000.0;
-        }
-        dispatch_semaphore_signal(semaphore);
-    }] resume];
-    dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
-    [session finishTasksAndInvalidate];
+    NSDictionary *httpsProbe = IFHTTPSProbe();
     return @{
         @"ipv4": ipv4,
         @"ipv6": ipv6,
@@ -468,8 +519,10 @@ static double IFSystemCPUPercent(void) {
         @"radio": radio,
         @"interfaces": interfaces,
         @"dnsLatency": @(dnsMilliseconds),
-        @"internetAvailable": @(internetAvailable),
-        @"internetLatency": @(internetMilliseconds)
+        @"internetAvailable": httpsProbe[@"available"],
+        @"internetLatency": httpsProbe[@"latency"],
+        @"internetEndpoint": httpsProbe[@"endpoint"],
+        @"internetError": httpsProbe[@"error"]
     };
 }
 
