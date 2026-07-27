@@ -3,6 +3,10 @@
 
 #import "IFetchCore.h"
 
+static NSString *IFT(NSString *english, NSString *russian) {
+    return [IFLanguageManager english:english russian:russian];
+}
+
 static NSString *IFColor(NSString *code, NSString *text, BOOL enabled) {
     return enabled ? [NSString stringWithFormat:@"\033[%@m%@\033[0m", code, text] : text;
 }
@@ -14,7 +18,7 @@ static void IFPrintLine(NSString *label, NSString *value, BOOL color) {
 
 static NSString *IFSynchronousPublicIP(void) {
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-    __block NSString *address = @"Недоступно";
+    __block NSString *address = IFT(@"Unavailable", @"Недоступно");
     [IFNetworkMonitor fetchPublicIPAddressWithCompletion:^(NSString *result) {
         address = result;
         dispatch_semaphore_signal(semaphore);
@@ -50,61 +54,62 @@ int main(int argc, char *argv[]) {
              " :_______`-;\n"
              "  `._.-._.'\n", color);
         printf("%s\n", logo.UTF8String);
-        printf("%s\n\n", IFColor(@"1;37", @"iFetch 2.0.0 — iOS system fetch", color).UTF8String);
+        NSString *title = [NSString stringWithFormat:@"iFetch %@ — iOS system fetch", [IFetchCore versionString]];
+        printf("%s\n\n", IFColor(@"1;37", title, color).UTF8String);
 
-        IFPrintLine(@"Устройство", [NSString stringWithFormat:@"%@ (%@)", device.modelName, device.identifier], color);
-        IFPrintLine(@"Система", [NSString stringWithFormat:@"iOS %@", [NSProcessInfo processInfo].operatingSystemVersionString], color);
-        IFPrintLine(@"Чип", device.chipName, color);
-        IFPrintLine(@"Архитектура", device.architectureName, color);
-        IFPrintLine(@"Ядро", [IFetchCore darwinVersion], color);
-        IFPrintLine(@"Аптайм", [IFetchCore systemUptime], color);
+        IFPrintLine(IFT(@"Device", @"Устройство"), [NSString stringWithFormat:@"%@ (%@)", device.modelName, device.identifier], color);
+        IFPrintLine(IFT(@"System", @"Система"), [NSString stringWithFormat:@"iOS %@", [NSProcessInfo processInfo].operatingSystemVersionString], color);
+        IFPrintLine(IFT(@"Chip", @"Чип"), device.chipName, color);
+        IFPrintLine(IFT(@"Architecture", @"Архитектура"), device.architectureName, color);
+        IFPrintLine(IFT(@"Kernel", @"Ядро"), [IFetchCore darwinVersion], color);
+        IFPrintLine(IFT(@"Uptime", @"Аптайм"), [IFetchCore systemUptime], color);
 
         NSNumber *usedMemory = [IFetchCore usedMemoryBytes];
         NSString *memory = usedMemory
             ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedMemory.unsignedLongLongValue],
                [IFetchCore formatBytes:[IFetchCore totalMemoryBytes]]]
-            : @"Недоступно";
-        IFPrintLine(@"ОЗУ", memory, color);
+            : IFT(@"Unavailable", @"Недоступно");
+        IFPrintLine(IFT(@"Memory", @"ОЗУ"), memory, color);
 
         NSNumber *usedStorage = [IFetchCore usedStorageBytes];
         NSNumber *totalStorage = [IFetchCore totalStorageBytes];
         NSString *storage = usedStorage && totalStorage
             ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedStorage.unsignedLongLongValue],
                [IFetchCore formatBytes:totalStorage.unsignedLongLongValue]]
-            : @"Недоступно";
-        IFPrintLine(@"Накопитель", storage, color);
+            : IFT(@"Unavailable", @"Недоступно");
+        IFPrintLine(IFT(@"Storage", @"Накопитель"), storage, color);
 
         IFPrintLine(@"Jailbreak", jailbreak.environmentName, color);
-        IFPrintLine(@"Хук-инжектор", jailbreak.injectorDescription, color);
-        IFPrintLine(@"Пакеты / твики",
+        IFPrintLine(IFT(@"Hook injector", @"Хук-инжектор"), jailbreak.injectorDescription, color);
+        IFPrintLine(IFT(@"Packages / tweaks", @"Пакеты / твики"),
                     [NSString stringWithFormat:@"%ld / %ld", (long)jailbreak.installedPackageCount,
                      (long)jailbreak.activeTweakCount], color);
-        IFPrintLine(@"Crash-логи 24ч", [NSString stringWithFormat:@"%ld", (long)jailbreak.recentCrashCount], color);
+        IFPrintLine(IFT(@"Crash logs 24h", @"Crash-логи 24ч"), [NSString stringWithFormat:@"%ld", (long)jailbreak.recentCrashCount], color);
 
-        IFPrintLine(@"Локальный IP", network.localIPAddress, color);
-        IFPrintLine(@"Публичный IP", IFSynchronousPublicIP(), color);
-        IFPrintLine(@"Интерфейс", network.activeInterface, color);
+        IFPrintLine(IFT(@"Local IP", @"Локальный IP"), network.localIPAddress, color);
+        IFPrintLine(IFT(@"Public IP", @"Публичный IP"), IFSynchronousPublicIP(), color);
+        IFPrintLine(IFT(@"Interface", @"Интерфейс"), network.activeInterface, color);
         IFPrintLine(@"VPN", network.vpnInterface, color);
-        IFPrintLine(@"DNS", network.dnsServers.count > 0 ? [network.dnsServers componentsJoinedByString:@", "] : @"Недоступно", color);
-        IFPrintLine(@"Сеть ↓ / ↑",
+        IFPrintLine(@"DNS", network.dnsServers.count > 0 ? [network.dnsServers componentsJoinedByString:@", "] : IFT(@"Unavailable", @"Недоступно"), color);
+        IFPrintLine(IFT(@"Network ↓ / ↑", @"Сеть ↓ / ↑"),
                     [NSString stringWithFormat:@"%@ / %@",
                      [IFetchCore formatRate:network.downloadBytesPerSecond],
                      [IFetchCore formatRate:network.uploadBytesPerSecond]], color);
 
-        printf("\n%s\n", IFColor(@"1;33", @"Top-3 процессов по ОЗУ", color).UTF8String);
+        printf("\n%s\n", IFColor(@"1;33", IFT(@"Top-3 processes by memory", @"Top-3 процессов по ОЗУ"), color).UTF8String);
         NSArray<IFProcessSample *> *topMemory = [processMonitor topProcessesByMemory:3];
         if (topMemory.count == 0) {
-            printf("  Недоступно (proc_pidinfo)\n");
+            printf("  %s (proc_pidinfo)\n", IFT(@"Unavailable", @"Недоступно").UTF8String);
         }
         for (IFProcessSample *sample in topMemory) {
             printf("  %-22s %9s  %5.1f%% CPU\n", sample.name.UTF8String,
                    [IFetchCore formatBytes:sample.residentBytes].UTF8String, sample.cpuPercent);
         }
 
-        printf("\n%s\n", IFColor(@"1;33", @"Top-3 процессов по CPU", color).UTF8String);
+        printf("\n%s\n", IFColor(@"1;33", IFT(@"Top-3 processes by CPU", @"Top-3 процессов по CPU"), color).UTF8String);
         NSArray<IFProcessSample *> *topCPU = [processMonitor topProcessesByCPU:3];
         if (topCPU.count == 0) {
-            printf("  Недоступно (proc_pidinfo)\n");
+            printf("  %s (proc_pidinfo)\n", IFT(@"Unavailable", @"Недоступно").UTF8String);
         }
         for (IFProcessSample *sample in topCPU) {
             printf("  %-22s %5.1f%% CPU  %s\n", sample.name.UTF8String, sample.cpuPercent,
