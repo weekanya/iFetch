@@ -9,6 +9,11 @@ on:
   release:
     types: [published, edited]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish (leave empty for latest)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -16,11 +21,26 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages
+  group: ${{ github.event_name == 'release' && 'sileo-release-dispatch' || 'github-pages' }}
   cancel-in-progress: true
 
 jobs:
+  dispatch-from-main:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Start Pages workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh workflow run sileo-repo.yml --ref main -f release_tag="$RELEASE_TAG"
+
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +55,7 @@ jobs:
       - name: Prepare repository
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           mkdir -p _site/debs
           cp -a repo/. _site/
