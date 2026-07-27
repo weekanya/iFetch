@@ -117,6 +117,12 @@ packages/com.wee1ka.ifetch_3.0.2_iphoneos-arm64.deb
 src/scripts/validate_project.sh
 ```
 
+Пересоздание обрезанных изображений устройств с помощью ImageMagick 7:
+
+```sh
+src/scripts/process_device_atlases.sh
+```
+
 ## Доступ к системе и приватность
 
 iFetch рассчитан на jailbreak-окружение и подписывается с расширенными

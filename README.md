@@ -118,6 +118,12 @@ Run the project checks with:
 src/scripts/validate_project.sh
 ```
 
+Regenerate the cropped device images with ImageMagick 7:
+
+```sh
+src/scripts/process_device_atlases.sh
+```
+
 ## System access and privacy
 
 iFetch is designed for a jailbreak environment and is signed with extended

@@ -3,11 +3,17 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="${project_dir}/resources/DevicePhotos"
-chroma_helper="/home/wee/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "${work_dir}"' EXIT
 
+if ! command -v magick >/dev/null 2>&1; then
+    echo "ImageMagick 7 is required." >&2
+    exit 1
+fi
+
 mkdir -p "${output_dir}"
+
+alpha_expression='dd=max(max(r,abs(g-1)),b);tt=12/255;oo=220/255;qq=max(0,min(1,(dd-tt)/(oo-tt)));ss=qq*qq*(3-2*qq);nn=max(r,b);da=g>nn?1-min(1,(g-nn)/max(1/255,1-nn)):1;kl=(dd<=32/255)||(g-nn>=16/255);kl?min(ss,da):1'
 
 process_atlas() {
     local atlas="$1"
@@ -22,14 +28,15 @@ process_atlas() {
         local transparent="${atlas_dir}/transparent-${index}.png"
         local destination="${output_dir}/${names[$index]}"
 
-        python3 "${chroma_helper}" \
-            --input "${keyed}" \
-            --out "${transparent}" \
-            --auto-key border \
-            --soft-matte \
-            --transparent-threshold 12 \
-            --opaque-threshold 220 \
-            --despill
+        magick "${keyed}" \
+            -alpha set \
+            -channel A \
+            -fx "${alpha_expression}" \
+            -fx 'a<=8/255?0:a' \
+            -channel G \
+            -fx 'a<252/255&&g>max(r,b)?max(0,max(r,b)-1/255):g' \
+            -channel RGBA \
+            "${transparent}"
 
         magick "${transparent}" \
             -trim +repage \
