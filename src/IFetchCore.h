@@ -2,6 +2,20 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSInteger, IFLanguage) {
+    IFLanguageEnglish = 0,
+    IFLanguageRussian = 1
+};
+
+@interface IFLanguageManager : NSObject
+
++ (IFLanguage)currentLanguage;
++ (void)setCurrentLanguage:(IFLanguage)language;
++ (BOOL)isRussian;
++ (NSString *)english:(NSString *)english russian:(NSString *)russian;
+
+@end
+
 @interface IFDeviceInfo : NSObject
 
 @property (nonatomic, copy, readonly) NSString *identifier;
@@ -63,6 +77,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface IFetchCore : NSObject
 
++ (NSString *)versionString;
 + (uint64_t)totalMemoryBytes;
 + (nullable NSNumber *)usedMemoryBytes;
 + (nullable NSNumber *)totalStorageBytes;
