@@ -109,7 +109,7 @@ make clean package FINALPACKAGE=1
 The finished package is written to:
 
 ```text
-packages/com.wee1ka.ifetch_3.0.0_iphoneos-arm64.deb
+packages/com.wee1ka.ifetch_3.0.1_iphoneos-arm64.deb
 ```
 
 Run the project checks with:
