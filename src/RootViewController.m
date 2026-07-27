@@ -1,392 +1,521 @@
 #import "RootViewController.h"
-#import <ifaddrs.h>
-#import <arpa/inet.h>
+#import "IFetchCore.h"
+
 #import <spawn.h>
-#import <mach/mach.h>
-#import <sys/sysctl.h>
-#import <dlfcn.h> 
+#import <sys/wait.h>
+
+extern char **environ;
+
+typedef NS_ENUM(NSInteger, IFTab) {
+    IFTabOverview = 0,
+    IFTabSystem = 1,
+    IFTabTools = 2
+};
 
 @interface RootViewController ()
 
 @property (nonatomic, strong) UISegmentedControl *segmentedControl;
-@property (nonatomic, strong) UIScrollView *overviewContainer;
-@property (nonatomic, strong) UIScrollView *hardwareContainer;
-@property (nonatomic, strong) UIScrollView *toolsContainer;
+@property (nonatomic, assign) IFTab selectedTab;
+@property (nonatomic, strong) IFDeviceInfo *device;
+@property (nonatomic, strong) IFJailbreakInfo *jailbreak;
+@property (nonatomic, strong) IFProcessMonitor *processMonitor;
+@property (nonatomic, strong) IFNetworkMonitor *networkMonitor;
+@property (nonatomic, strong) IFNetworkSnapshot *networkSnapshot;
+@property (nonatomic, copy) NSString *publicIPAddress;
+@property (nonatomic, strong) NSTimer *refreshTimer;
+@property (nonatomic, assign) NSUInteger refreshTick;
 
 @end
 
 @implementation RootViewController
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    
-    self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
-    
-    [self setupSegmentedControl];
-    [self setupOverviewTab];
-    [self setupHardwareTab];
-    [self setupToolsTab];
-    
-    [self segmentChanged:self.segmentedControl];
+- (instancetype)init {
+    return [super initWithStyle:UITableViewStyleInsetGrouped];
 }
 
-#pragma mark - Segmented Control
+- (void)viewDidLoad {
+    [super viewDidLoad];
 
-- (void)setupSegmentedControl {
+    self.title = @"iFetch";
+    self.device = [IFDeviceInfo currentDevice];
+    self.jailbreak = [IFetchCore jailbreakInfo];
+    self.processMonitor = [[IFProcessMonitor alloc] init];
+    self.networkMonitor = [[IFNetworkMonitor alloc] init];
+    self.networkSnapshot = [self.networkMonitor refresh];
+    self.publicIPAddress = @"Загрузка…";
+
+    self.tableView.rowHeight = 52;
+    self.tableView.estimatedRowHeight = 52;
+    self.tableView.cellLayoutMarginsFollowReadableWidth = YES;
+    [self setupHeader];
+    [self fetchPublicIPAddress];
+
+    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
+                                                        target:self
+                                                      selector:@selector(refreshLiveData:)
+                                                      userInfo:nil
+                                                       repeats:YES];
+}
+
+- (void)dealloc {
+    [self.refreshTimer invalidate];
+}
+
+- (void)setupHeader {
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 56)];
     self.segmentedControl = [[UISegmentedControl alloc] initWithItems:@[@"Сводка", @"Система", @"Утилиты"]];
-    self.segmentedControl.frame = CGRectMake(16, 56, self.view.bounds.size.width - 32, 32);
-    self.segmentedControl.selectedSegmentIndex = 0;
-    
+    self.segmentedControl.selectedSegmentIndex = self.selectedTab;
+    self.segmentedControl.translatesAutoresizingMaskIntoConstraints = NO;
     [self.segmentedControl addTarget:self action:@selector(segmentChanged:) forControlEvents:UIControlEventValueChanged];
-    [self.view addSubview:self.segmentedControl];
+    [header addSubview:self.segmentedControl];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.segmentedControl.leadingAnchor constraintEqualToAnchor:header.layoutMarginsGuide.leadingAnchor],
+        [self.segmentedControl.trailingAnchor constraintEqualToAnchor:header.layoutMarginsGuide.trailingAnchor],
+        [self.segmentedControl.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
+        [self.segmentedControl.heightAnchor constraintEqualToConstant:32]
+    ]];
+    self.tableView.tableHeaderView = header;
 }
 
 - (void)segmentChanged:(UISegmentedControl *)sender {
-    self.overviewContainer.hidden = (sender.selectedSegmentIndex != 0);
-    self.hardwareContainer.hidden = (sender.selectedSegmentIndex != 1);
-    self.toolsContainer.hidden = (sender.selectedSegmentIndex != 2);
+    self.selectedTab = (IFTab)sender.selectedSegmentIndex;
+    [self.tableView reloadData];
+    [self.tableView setContentOffset:CGPointMake(0, -self.tableView.adjustedContentInset.top) animated:NO];
 }
 
-#pragma mark - Native HIG UI Builders
-
-- (UIView *)createSettingsBlockWithFrame:(CGRect)frame rows:(NSArray<NSDictionary *> *)rows {
-    UIView *block = [[UIView alloc] initWithFrame:frame];
-    block.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
-    block.layer.cornerRadius = 10.0;
-    
-    CGFloat rowHeight = 44.0;
-    
-    for (int i = 0; i < rows.count; i++) {
-        NSDictionary *row = rows[i];
-        
-        UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, i * rowHeight, frame.size.width / 2 + 20, rowHeight)];
-        titleLabel.text = row[@"title"];
-        titleLabel.font = [UIFont systemFontOfSize:17];
-        titleLabel.textColor = [UIColor labelColor];
-        [block addSubview:titleLabel];
-        
-        if (row[@"value"]) {
-            UILabel *valLabel = [[UILabel alloc] initWithFrame:CGRectMake(frame.size.width / 2, i * rowHeight, (frame.size.width / 2) - 16, rowHeight)];
-            valLabel.text = row[@"value"];
-            valLabel.font = [UIFont systemFontOfSize:17];
-            valLabel.textColor = [UIColor secondaryLabelColor];
-            valLabel.textAlignment = NSTextAlignmentRight;
-            [block addSubview:valLabel];
-        }
-        
-        if (row[@"action"]) {
-            titleLabel.textColor = row[@"color"] ? row[@"color"] : [UIColor systemBlueColor];
-            titleLabel.textAlignment = NSTextAlignmentCenter;
-            titleLabel.frame = CGRectMake(0, i * rowHeight, frame.size.width, rowHeight);
-            
-            UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-            btn.frame = CGRectMake(0, i * rowHeight, frame.size.width, rowHeight);
-            [btn addTarget:self action:NSSelectorFromString(row[@"action"]) forControlEvents:UIControlEventTouchUpInside];
-            [block addSubview:btn];
-        }
-        
-        if (i < rows.count - 1) {
-            UIView *separator = [[UIView alloc] initWithFrame:CGRectMake(16, (i + 1) * rowHeight - 0.5, frame.size.width - 16, 0.5)];
-            separator.backgroundColor = [UIColor separatorColor];
-            [block addSubview:separator];
-        }
+- (void)refreshLiveData:(NSTimer *)timer {
+    (void)timer;
+    self.networkSnapshot = [self.networkMonitor refresh];
+    self.refreshTick++;
+    if (self.refreshTick % 2 == 0) {
+        [self.processMonitor refresh];
     }
-    return block;
-}
-
-#pragma mark - Tab 1: Сводка
-
-- (void)setupOverviewTab {
-    CGFloat startY = 108;
-    CGFloat width = self.view.bounds.size.width - 32;
-    
-    self.overviewContainer = [[UIScrollView alloc] initWithFrame:CGRectMake(16, startY, width, self.view.bounds.size.height - startY)];
-    self.overviewContainer.showsVerticalScrollIndicator = NO;
-    [self.view addSubview:self.overviewContainer];
-    
-    UIView *heroBlock = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 80)];
-    heroBlock.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
-    heroBlock.layer.cornerRadius = 10.0;
-    
-    UIImageView *icon = [[UIImageView alloc] initWithFrame:CGRectMake(16, 10, 45, 60)];
-    icon.image = [UIImage imageNamed:@"iphone8.png"];
-    icon.contentMode = UIViewContentModeScaleAspectFit;
-    [heroBlock addSubview:icon];
-    
-    UILabel *deviceName = [[UILabel alloc] initWithFrame:CGRectMake(76, 18, width - 90, 22)];
-    deviceName.text = @"iPhone 8";
-    deviceName.font = [UIFont systemFontOfSize:20 weight:UIFontWeightSemibold];
-    [heroBlock addSubview:deviceName];
-    
-    UILabel *deviceSub = [[UILabel alloc] initWithFrame:CGRectMake(76, 42, width - 90, 18)];
-    deviceSub.text = @"iOS 16.7.4 (Dopamine Rootless)";
-    deviceSub.font = [UIFont systemFontOfSize:14];
-    deviceSub.textColor = [UIColor secondaryLabelColor];
-    [heroBlock addSubview:deviceSub];
-    [self.overviewContainer addSubview:heroBlock];
-    
-    UIView *memBlock = [[UIView alloc] initWithFrame:CGRectMake(0, 100, width, 130)];
-    memBlock.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
-    memBlock.layer.cornerRadius = 10.0;
-    
-    uint64_t totalRam = [NSProcessInfo processInfo].physicalMemory / (1024 * 1024);
-    uint64_t totalStorage = [self getTotalStorageGB];
-    
-    [self addNativeProgressRowTo:memBlock y:0 title:@"Оперативная память" value:[NSString stringWithFormat:@"%llu / %llu МБ", [self getUsedMemoryMB], totalRam] progress:(float)[self getUsedMemoryMB]/totalRam];
-    
-    UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(16, 65, width - 16, 0.5)];
-    sep.backgroundColor = [UIColor separatorColor];
-    [memBlock addSubview:sep];
-    
-    [self addNativeProgressRowTo:memBlock y:65 title:@"Накопитель" value:[NSString stringWithFormat:@"%llu / %llu ГБ", [self getUsedStorageGB], totalStorage] progress:(float)[self getUsedStorageGB]/totalStorage];
-    [self.overviewContainer addSubview:memBlock];
-    
-    NSArray *jbRows = @[
-        @{@"title": @"Установлено пакетов", @"value": [NSString stringWithFormat:@"%ld", (long)[self getInstalledPackagesCount]]},
-        @{@"title": @"Активные твики", @"value": [NSString stringWithFormat:@"%ld", (long)[self getActiveDylibsCount]]},
-        @{@"title": @"Аптайм системы", @"value": [self getSystemUptimeFormatted]}
-    ];
-    UIView *jbBlock = [self createSettingsBlockWithFrame:CGRectMake(0, 250, width, 44 * jbRows.count) rows:jbRows];
-    [self.overviewContainer addSubview:jbBlock];
-}
-
-- (void)addNativeProgressRowTo:(UIView *)parent y:(CGFloat)y title:(NSString *)title value:(NSString *)value progress:(float)progress {
-    UILabel *tLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, y + 10, 200, 16)];
-    tLabel.text = title;
-    tLabel.font = [UIFont systemFontOfSize:15];
-    [parent addSubview:tLabel];
-    
-    UILabel *vLabel = [[UILabel alloc] initWithFrame:CGRectMake(parent.bounds.size.width - 216, y + 10, 200, 16)];
-    vLabel.text = value;
-    vLabel.font = [UIFont systemFontOfSize:15];
-    vLabel.textColor = [UIColor secondaryLabelColor];
-    vLabel.textAlignment = NSTextAlignmentRight;
-    [parent addSubview:vLabel];
-    
-    UIView *track = [[UIView alloc] initWithFrame:CGRectMake(16, y + 36, parent.bounds.size.width - 32, 6)];
-    track.backgroundColor = [UIColor tertiarySystemGroupedBackgroundColor];
-    track.layer.cornerRadius = 3.0;
-    
-    UIView *fill = [[UIView alloc] initWithFrame:CGRectMake(0, 0, (parent.bounds.size.width - 32) * progress, 6)];
-    fill.backgroundColor = [UIColor systemBlueColor];
-    fill.layer.cornerRadius = 3.0;
-    [track addSubview:fill];
-    [parent addSubview:track];
-}
-
-#pragma mark - Tab 2: Система (Подробная статистика)
-
-- (void)setupHardwareTab {
-    CGFloat width = self.view.bounds.size.width - 32;
-    self.hardwareContainer = [[UIScrollView alloc] initWithFrame:CGRectMake(16, 108, width, self.view.bounds.size.height - 108)];
-    self.hardwareContainer.showsVerticalScrollIndicator = NO;
-    [self.view addSubview:self.hardwareContainer];
-    
-    NSArray *hwRows = @[
-        @{@"title": @"Идентификатор", @"value": @"iPhone10,4"},
-        @{@"title": @"Чип", @"value": @"Apple A11 Bionic"},
-        @{@"title": @"Архитектура", @"value": @"arm64e"},
-        @{@"title": @"Ядро Darwin", @"value": [self getDarwinVersion]},
-        @{@"title": @"Температура", @"value": [self getThermalStateString]}
-    ];
-    UIView *hwBlock = [self createSettingsBlockWithFrame:CGRectMake(0, 0, width, 44 * hwRows.count) rows:hwRows];
-    [self.hardwareContainer addSubview:hwBlock];
-    
-    [UIDevice currentDevice].batteryMonitoringEnabled = YES;
-    NSString *batState = @"Неизвестно";
-    switch ([UIDevice currentDevice].batteryState) {
-        case UIDeviceBatteryStateCharging: batState = @"Заряжается ⚡"; break;
-        case UIDeviceBatteryStateUnplugged: batState = @"Отключен"; break;
-        case UIDeviceBatteryStateFull: batState = @"Заряжен 100%"; break;
-        default: break;
+    if (self.selectedTab == IFTabSystem) {
+        [self.tableView reloadData];
     }
-    
-    float batLevel = [UIDevice currentDevice].batteryLevel * 100;
-    if (batLevel < 0) batLevel = 94.0;
-    
-    NSArray *batRows = @[
-        @{@"title": @"Уровень заряда", @"value": [NSString stringWithFormat:@"%.0f%%", batLevel]},
-        @{@"title": @"Статус", @"value": batState},
-        @{@"title": @"Циклы перезарядки", @"value": [self getBatteryCycles]}
-    ];
-    UIView *batBlock = [self createSettingsBlockWithFrame:CGRectMake(0, hwBlock.frame.origin.y + hwBlock.frame.size.height + 20, width, 44 * batRows.count) rows:batRows];
-    [self.hardwareContainer addSubview:batBlock];
-    
-    NSArray *netRows = @[
-        @{@"title": @"Wi-Fi IP", @"value": [self getLocalIPAddress]},
-        @{@"title": @"Интерфейс", @"value": @"en0"}
-    ];
-    UIView *netBlock = [self createSettingsBlockWithFrame:CGRectMake(0, batBlock.frame.origin.y + batBlock.frame.size.height + 20, width, 44 * netRows.count) rows:netRows];
-    [self.hardwareContainer addSubview:netBlock];
-    
-    self.hardwareContainer.contentSize = CGSizeMake(width, netBlock.frame.origin.y + netBlock.frame.size.height + 40);
 }
 
-#pragma mark - Tab 3: Утилиты (Новые мощные действия)
-
-- (void)setupToolsTab {
-    CGFloat width = self.view.bounds.size.width - 32;
-    self.toolsContainer = [[UIScrollView alloc] initWithFrame:CGRectMake(16, 108, width, self.view.bounds.size.height - 108)];
-    self.toolsContainer.showsVerticalScrollIndicator = NO;
-    [self.view addSubview:self.toolsContainer];
-    
-    NSArray *actionRows = @[
-        @{@"title": @"Respring", @"action": @"respringTapped", @"color": [UIColor systemBlueColor]},
-        @{@"title": @"Очистить кэш (UICache)", @"action": @"uicacheTapped", @"color": [UIColor systemBlueColor]}
-    ];
-    UIView *actionBlock = [self createSettingsBlockWithFrame:CGRectMake(0, 0, width, 44 * actionRows.count) rows:actionRows];
-    [self.toolsContainer addSubview:actionBlock];
-    
-    NSArray *dangerRows = @[
-        @{@"title": @"Вход в Safe Mode", @"action": @"safeModeTapped", @"color": [UIColor systemOrangeColor]},
-        @{@"title": @"Userspace Reboot", @"action": @"userspaceRebootTapped", @"color": [UIColor systemRedColor]}
-    ];
-    UIView *dangerBlock = [self createSettingsBlockWithFrame:CGRectMake(0, actionBlock.frame.origin.y + actionBlock.frame.size.height + 20, width, 44 * dangerRows.count) rows:dangerRows];
-    [self.toolsContainer addSubview:dangerBlock];
-    
-    NSArray *exportRows = @[
-        @{@"title": @"Скопировать системный отчёт", @"action": @"copyReportTapped", @"color": [UIColor systemBlueColor]}
-    ];
-    UIView *exportBlock = [self createSettingsBlockWithFrame:CGRectMake(0, dangerBlock.frame.origin.y + dangerBlock.frame.size.height + 20, width, 44 * exportRows.count) rows:exportRows];
-    [self.toolsContainer addSubview:exportBlock];
-}
-
-#pragma mark - Data Fetching Methods
-
-- (NSString *)getBatteryCycles {
-    void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_GLOBAL | RTLD_LAZY);
-    if (iokit) {
-        CFMutableDictionaryRef (*IOServiceMatching)(const char *) = dlsym(iokit, "IOServiceMatching");
-        mach_port_t (*IOServiceGetMatchingService)(mach_port_t, CFDictionaryRef) = dlsym(iokit, "IOServiceGetMatchingService");
-        CFTypeRef (*IORegistryEntryCreateCFProperty)(mach_port_t, CFStringRef, CFAllocatorRef, uint32_t) = dlsym(iokit, "IORegistryEntryCreateCFProperty");
-        kern_return_t (*IOObjectRelease)(mach_port_t) = dlsym(iokit, "IOObjectRelease");
-
-        if (IOServiceMatching && IOServiceGetMatchingService && IORegistryEntryCreateCFProperty && IOObjectRelease) {
-            mach_port_t service = IOServiceGetMatchingService(0, IOServiceMatching("AppleSmartBattery"));
-            if (service) {
-                NSNumber *cycleCount = (__bridge_transfer NSNumber *)IORegistryEntryCreateCFProperty(service, CFSTR("CycleCount"), kCFAllocatorDefault, 0);
-                IOObjectRelease(service);
-                
-                if (cycleCount) {
-                    return [cycleCount stringValue];
-                }
+- (void)fetchPublicIPAddress {
+    __weak typeof(self) weakSelf = self;
+    [IFNetworkMonitor fetchPublicIPAddressWithCompletion:^(NSString *address) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            weakSelf.publicIPAddress = address;
+            if (weakSelf.selectedTab == IFTabSystem) {
+                [weakSelf.tableView reloadData];
             }
-        }
-    }
-    return @"Скрыто ядром";
-}
-
-- (uint64_t)getUsedMemoryMB {
-    mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
-    vm_statistics64_data_t vm_stat;
-    if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (host_info64_t)&vm_stat, &count) == KERN_SUCCESS) {
-        long long freeMem = (vm_stat.free_count + vm_stat.inactive_count) * vm_page_size;
-        return ([NSProcessInfo processInfo].physicalMemory - freeMem) / (1024 * 1024);
-    }
-    return 994;
-}
-
-- (uint64_t)getTotalStorageGB {
-    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfFileSystemForPath:@"/var/mobile" error:nil];
-    return [attrs[NSFileSystemSize] unsignedLongLongValue] / (1024 * 1024 * 1024);
-}
-
-- (uint64_t)getUsedStorageGB {
-    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfFileSystemForPath:@"/var/mobile" error:nil];
-    uint64_t total = [attrs[NSFileSystemSize] unsignedLongLongValue];
-    uint64_t free = [attrs[NSFileSystemFreeSize] unsignedLongLongValue];
-    return (total - free) / (1024 * 1024 * 1024);
-}
-
-- (NSString *)getSystemUptimeFormatted {
-    struct timeval bootTime;
-    size_t size = sizeof(bootTime);
-    int mib[2] = {CTL_KERN, KERN_BOOTTIME};
-    if (sysctl(mib, 2, &bootTime, &size, NULL, 0) != -1) {
-        time_t now; time(&now);
-        time_t uptime = now - bootTime.tv_sec;
-        return [NSString stringWithFormat:@"%dч %dмин", (int)(uptime / 3600), (int)((uptime % 3600) / 60)];
-    }
-    return @"Неизвестно";
-}
-
-- (NSInteger)getInstalledPackagesCount {
-    NSString *status = [NSString stringWithContentsOfFile:@"/var/jb/Library/dpkg/status" encoding:NSUTF8StringEncoding error:nil];
-    return status ? [[status componentsSeparatedByString:@"Package: "] count] - 1 : 17;
-}
-
-- (NSInteger)getActiveDylibsCount {
-    NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:@"/var/jb/Library/MobileSubstrate/DynamicLibraries" error:nil];
-    return [[files filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self ENDSWITH '.dylib'"]] count];
-}
-
-- (NSString *)getDarwinVersion {
-    char str[256]; size_t size = sizeof(str);
-    return sysctlbyname("kern.osrelease", str, &size, NULL, 0) == 0 ? [NSString stringWithUTF8String:str] : @"22.6.0";
-}
-
-- (NSString *)getThermalStateString {
-    if (@available(iOS 11.0, *)) {
-        switch ([NSProcessInfo processInfo].thermalState) {
-            case NSProcessInfoThermalStateNominal: return @"Норма";
-            case NSProcessInfoThermalStateFair: return @"Тёплый";
-            case NSProcessInfoThermalStateSerious: return @"Горячий";
-            case NSProcessInfoThermalStateCritical: return @"Перегрев";
-        }
-    }
-    return @"Норма";
-}
-
-- (NSString *)getLocalIPAddress {
-    NSString *address = @"Отключен";
-    struct ifaddrs *interfaces = NULL;
-    if (getifaddrs(&interfaces) == 0) {
-        for (struct ifaddrs *temp = interfaces; temp != NULL; temp = temp->ifa_next) {
-            if (temp->ifa_addr->sa_family == AF_INET && [[NSString stringWithUTF8String:temp->ifa_name] isEqualToString:@"en0"]) {
-                address = [NSString stringWithUTF8String:inet_ntoa(((struct sockaddr_in *)temp->ifa_addr)->sin_addr)];
-            }
-        }
-    }
-    freeifaddrs(interfaces);
-    return address;
-}
-
-#pragma mark - Powerful Actions
-
-- (void)respringTapped {
-    pid_t pid;
-    const char *args[] = {"sbreload", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char* const*)args, NULL);
-}
-
-- (void)uicacheTapped {
-    pid_t pid;
-    const char *args[] = {"uicache", "-a", "-r", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/uicache", NULL, NULL, (char* const*)args, NULL);
-}
-
-- (void)safeModeTapped {
-    pid_t pid;
-    const char *args[] = {"killall", "-SEGV", "SpringBoard", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char* const*)args, NULL);
-}
-
-- (void)userspaceRebootTapped {
-    pid_t pid;
-    const char *args[] = {"launchctl", "reboot", "userspace", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/launchctl", NULL, NULL, (char* const*)args, NULL);
-}
-
-- (void)copyReportTapped {
-    NSString *report = [NSString stringWithFormat:@"Устройство: iPhone 8\niOS: 16.7.4 (Dopamine Rootless)\nЯдро: %@\nАптайм: %@\nПакеты: %ld", [self getDarwinVersion], [self getSystemUptimeFormatted], (long)[self getInstalledPackagesCount]];
-    [UIPasteboard generalPasteboard].string = report;
-    
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil message:@"Отчёт скопирован" preferredStyle:UIAlertControllerStyleAlert];
-    [self presentViewController:alert animated:YES completion:^{
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [alert dismissViewControllerAnimated:YES completion:nil];
         });
     }];
+}
+
+#pragma mark - Table structure
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    (void)tableView;
+    switch (self.selectedTab) {
+        case IFTabOverview: return 3;
+        case IFTabSystem: return 6;
+        case IFTabTools: return 3;
+    }
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    (void)tableView;
+    if (self.selectedTab == IFTabOverview) {
+        return section == 0 ? 1 : 3;
+    }
+    if (self.selectedTab == IFTabSystem) {
+        switch (section) {
+            case 0: return 6;
+            case 1: return 3;
+            case 2: return 7;
+            case 3: return MAX(1, [self.processMonitor topProcessesByMemory:3].count);
+            case 4: return MAX(1, [self.processMonitor topProcessesByCPU:3].count);
+            case 5: return 4;
+            default: return 0;
+        }
+    }
+    switch (section) {
+        case 0: return 2;
+        case 1: return 2;
+        case 2: return 1;
+        default: return 0;
+    }
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    (void)tableView;
+    if (self.selectedTab == IFTabOverview) {
+        return @[@"Устройство", @"Ресурсы", @"Jailbreak"][(NSUInteger)section];
+    }
+    if (self.selectedTab == IFTabSystem) {
+        return @[@"Аппаратная часть", @"Батарея", @"Сеть в реальном времени",
+                 @"Top-3 по оперативной памяти", @"Top-3 по CPU", @"Среда jailbreak"][(NSUInteger)section];
+    }
+    return @[@"Системные действия", @"Требуют подтверждения", @"Экспорт"][(NSUInteger)section];
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    (void)tableView;
+    if (self.selectedTab == IFTabSystem && section == 2) {
+        return @"Публичный IP запрашивается у api.ipify.org. Скорость считается по активным сетевым интерфейсам.";
+    }
+    if (self.selectedTab == IFTabSystem && section == 5 && self.jailbreak.recentCrashCount > 0) {
+        return @"Найдены crash-логи, изменённые за последние 24 часа.";
+    }
+    if (self.selectedTab == IFTabTools && section == 1) {
+        return @"Safe Mode аварийно завершает SpringBoard; Userspace Reboot перезапускает пользовательское окружение.";
+    }
+    return nil;
+}
+
+- (UITableViewCell *)standardCellWithTitle:(NSString *)title value:(NSString *)value {
+    static NSString *identifier = @"ValueCell";
+    UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:identifier];
+    if (cell == nil) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:identifier];
+        cell.detailTextLabel.adjustsFontSizeToFitWidth = YES;
+        cell.detailTextLabel.minimumScaleFactor = 0.7;
+    }
+    cell.textLabel.text = title;
+    cell.detailTextLabel.text = value;
+    cell.textLabel.font = [UIFont systemFontOfSize:17];
+    cell.textLabel.textAlignment = NSTextAlignmentNatural;
+    cell.textLabel.textColor = [UIColor labelColor];
+    cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+    cell.accessoryType = UITableViewCellAccessoryNone;
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    cell.imageView.image = nil;
+    return cell;
+}
+
+- (UITableViewCell *)deviceCell {
+    static NSString *identifier = @"DeviceCell";
+    UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:identifier];
+    if (cell == nil) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:identifier];
+        cell.imageView.contentMode = UIViewContentModeScaleAspectFit;
+        cell.imageView.clipsToBounds = YES;
+    }
+    cell.textLabel.text = self.device.modelName;
+    cell.textLabel.font = [UIFont systemFontOfSize:20 weight:UIFontWeightSemibold];
+    cell.detailTextLabel.text = [NSString stringWithFormat:@"iOS %@ · %@", [UIDevice currentDevice].systemVersion, self.jailbreak.environmentName];
+    cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+    cell.imageView.image = [UIImage imageNamed:self.device.imageName] ?: [UIImage imageNamed:@"iphone-generic.png"];
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    return cell;
+}
+
+- (UITableViewCell *)processCellForSample:(IFProcessSample *)sample metric:(NSString *)metric {
+    UITableViewCell *cell = [self standardCellWithTitle:sample.name value:@""];
+    cell.textLabel.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightRegular];
+    if ([metric isEqualToString:@"cpu"]) {
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%.1f%% · %@", sample.cpuPercent,
+                                     [IFetchCore formatBytes:sample.residentBytes]];
+    } else {
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %.1f%%",
+                                     [IFetchCore formatBytes:sample.residentBytes], sample.cpuPercent];
+    }
+    return cell;
+}
+
+- (UITableViewCell *)actionCellWithTitle:(NSString *)title color:(UIColor *)color {
+    UITableViewCell *cell = [self standardCellWithTitle:title value:@""];
+    cell.textLabel.textAlignment = NSTextAlignmentCenter;
+    cell.textLabel.textColor = color;
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    return cell;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    (void)tableView;
+    if (self.selectedTab == IFTabOverview) {
+        return [self overviewCellAtIndexPath:indexPath];
+    }
+    if (self.selectedTab == IFTabSystem) {
+        return [self systemCellAtIndexPath:indexPath];
+    }
+    return [self toolsCellAtIndexPath:indexPath];
+}
+
+- (UITableViewCell *)overviewCellAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == 0) {
+        return [self deviceCell];
+    }
+
+    if (indexPath.section == 1) {
+        NSNumber *usedMemory = [IFetchCore usedMemoryBytes];
+        NSNumber *totalStorage = [IFetchCore totalStorageBytes];
+        NSNumber *usedStorage = [IFetchCore usedStorageBytes];
+        NSArray *rows = @[
+            @[@"Оперативная память", usedMemory ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedMemory.unsignedLongLongValue], [IFetchCore formatBytes:[IFetchCore totalMemoryBytes]]] : @"Недоступно"],
+            @[@"Накопитель", (usedStorage && totalStorage) ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedStorage.unsignedLongLongValue], [IFetchCore formatBytes:totalStorage.unsignedLongLongValue]] : @"Недоступно"],
+            @[@"Аптайм", [IFetchCore systemUptime]]
+        ];
+        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                    value:rows[(NSUInteger)indexPath.row][1]];
+    }
+
+    NSArray *rows = @[
+        @[@"Установлено пакетов", [NSString stringWithFormat:@"%ld", (long)self.jailbreak.installedPackageCount]],
+        @[@"Активные твики", [NSString stringWithFormat:@"%ld", (long)self.jailbreak.activeTweakCount]],
+        @[@"Хук-инжектор", self.jailbreak.injectorDescription]
+    ];
+    return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                value:rows[(NSUInteger)indexPath.row][1]];
+}
+
+- (UITableViewCell *)systemCellAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == 0) {
+        NSArray *rows = @[
+            @[@"Модель", self.device.modelName],
+            @[@"Идентификатор", self.device.identifier],
+            @[@"Чип", self.device.chipName],
+            @[@"Архитектура", self.device.architectureName],
+            @[@"Ядро Darwin", [IFetchCore darwinVersion]],
+            @[@"Температура", [self thermalStateDescription]]
+        ];
+        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                    value:rows[(NSUInteger)indexPath.row][1]];
+    }
+
+    if (indexPath.section == 1) {
+        UIDevice *device = [UIDevice currentDevice];
+        device.batteryMonitoringEnabled = YES;
+        NSString *level = device.batteryLevel >= 0
+            ? [NSString stringWithFormat:@"%.0f%%", device.batteryLevel * 100]
+            : @"Недоступно";
+        NSDictionary *states = @{
+            @(UIDeviceBatteryStateUnknown): @"Неизвестно",
+            @(UIDeviceBatteryStateUnplugged): @"Отключена",
+            @(UIDeviceBatteryStateCharging): @"Заряжается",
+            @(UIDeviceBatteryStateFull): @"Заряжена"
+        };
+        NSArray *rows = @[
+            @[@"Уровень заряда", level],
+            @[@"Статус", states[@(device.batteryState)] ?: @"Неизвестно"],
+            @[@"Циклы", [IFetchCore batteryCycleCount] ?: @"Недоступно"]
+        ];
+        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                    value:rows[(NSUInteger)indexPath.row][1]];
+    }
+
+    if (indexPath.section == 2) {
+        NSString *dns = self.networkSnapshot.dnsServers.count > 0
+            ? [self.networkSnapshot.dnsServers componentsJoinedByString:@", "]
+            : @"Недоступно";
+        NSArray *rows = @[
+            @[@"Скачивание", [IFetchCore formatRate:self.networkSnapshot.downloadBytesPerSecond]],
+            @[@"Отдача", [IFetchCore formatRate:self.networkSnapshot.uploadBytesPerSecond]],
+            @[@"Локальный IP", self.networkSnapshot.localIPAddress],
+            @[@"Публичный IP", self.publicIPAddress],
+            @[@"Интерфейс", self.networkSnapshot.activeInterface],
+            @[@"VPN", self.networkSnapshot.vpnInterface],
+            @[@"DNS", dns]
+        ];
+        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                    value:rows[(NSUInteger)indexPath.row][1]];
+    }
+
+    if (indexPath.section == 3 || indexPath.section == 4) {
+        BOOL cpu = indexPath.section == 4;
+        NSArray<IFProcessSample *> *samples = cpu
+            ? [self.processMonitor topProcessesByCPU:3]
+            : [self.processMonitor topProcessesByMemory:3];
+        if (samples.count == 0) {
+            return [self standardCellWithTitle:@"Недоступно" value:@"proc_pidinfo"];
+        }
+        return [self processCellForSample:samples[(NSUInteger)indexPath.row] metric:cpu ? @"cpu" : @"memory"];
+    }
+
+    NSString *crashes = self.jailbreak.recentCrashCount > 0
+        ? [NSString stringWithFormat:@"%ld новых", (long)self.jailbreak.recentCrashCount]
+        : @"Нет новых";
+    NSArray *rows = @[
+        @[@"Окружение", self.jailbreak.environmentName],
+        @[@"Корень", self.jailbreak.rootPrefix.length > 0 ? self.jailbreak.rootPrefix : @"/"],
+        @[@"Хук-инжектор", self.jailbreak.injectorDescription],
+        @[@"Crash-логи (24ч)", crashes]
+    ];
+    UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                                 value:rows[(NSUInteger)indexPath.row][1]];
+    if (indexPath.row == 3 && self.jailbreak.recentCrashCount > 0) {
+        cell.detailTextLabel.textColor = [UIColor systemOrangeColor];
+    }
+    return cell;
+}
+
+- (UITableViewCell *)toolsCellAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == 0) {
+        return [self actionCellWithTitle:indexPath.row == 0 ? @"Respring" : @"Обновить кэш иконок"
+                                  color:[UIColor systemBlueColor]];
+    }
+    if (indexPath.section == 1) {
+        return [self actionCellWithTitle:indexPath.row == 0 ? @"Войти в Safe Mode" : @"Userspace Reboot"
+                                  color:indexPath.row == 0 ? [UIColor systemOrangeColor] : [UIColor systemRedColor]];
+    }
+    return [self actionCellWithTitle:@"Скопировать системный отчёт" color:[UIColor systemBlueColor]];
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    (void)tableView;
+    return self.selectedTab == IFTabOverview && indexPath.section == 0 ? 88 : 52;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (self.selectedTab != IFTabTools) {
+        return;
+    }
+
+    if (indexPath.section == 0 && indexPath.row == 0) {
+        [self confirmActionWithTitle:@"Выполнить Respring?"
+                             message:@"SpringBoard будет перезапущен."
+                             command:@"sbreload"
+                           arguments:@[]];
+    } else if (indexPath.section == 0 && indexPath.row == 1) {
+        [self runCommand:@"uicache" arguments:@[@"-a", @"-r"] successMessage:@"Кэш иконок обновляется"];
+    } else if (indexPath.section == 1 && indexPath.row == 0) {
+        [self confirmActionWithTitle:@"Войти в Safe Mode?"
+                             message:@"SpringBoard будет аварийно завершён сигналом SEGV."
+                             command:@"killall"
+                           arguments:@[@"-SEGV", @"SpringBoard"]];
+    } else if (indexPath.section == 1 && indexPath.row == 1) {
+        [self confirmActionWithTitle:@"Выполнить Userspace Reboot?"
+                             message:@"Все приложения закроются, пользовательское окружение будет перезапущено."
+                             command:@"launchctl"
+                           arguments:@[@"reboot", @"userspace"]];
+    } else if (indexPath.section == 2) {
+        [self copyReport];
+    }
+}
+
+#pragma mark - Actions
+
+- (NSString *)thermalStateDescription {
+    switch ([NSProcessInfo processInfo].thermalState) {
+        case NSProcessInfoThermalStateNominal: return @"Норма";
+        case NSProcessInfoThermalStateFair: return @"Повышена";
+        case NSProcessInfoThermalStateSerious: return @"Высокая";
+        case NSProcessInfoThermalStateCritical: return @"Критическая";
+    }
+    return @"Недоступно";
+}
+
+- (NSArray<NSString *> *)pathsForCommand:(NSString *)command {
+    return @[
+        [@"/var/jb/usr/bin" stringByAppendingPathComponent:command],
+        [@"/var/jb/usr/sbin" stringByAppendingPathComponent:command],
+        [@"/usr/bin" stringByAppendingPathComponent:command],
+        [@"/usr/sbin" stringByAppendingPathComponent:command],
+        [@"/bin" stringByAppendingPathComponent:command],
+        [@"/sbin" stringByAppendingPathComponent:command]
+    ];
+}
+
+- (void)confirmActionWithTitle:(NSString *)title
+                       message:(NSString *)message
+                       command:(NSString *)command
+                     arguments:(NSArray<NSString *> *)arguments {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Отмена" style:UIAlertActionStyleCancel handler:nil]];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Продолжить" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        [weakSelf runCommand:command arguments:arguments successMessage:nil];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)runCommand:(NSString *)command
+         arguments:(NSArray<NSString *> *)arguments
+     successMessage:(NSString *)successMessage {
+    NSString *path = [IFetchCore executablePathForCandidates:[self pathsForCommand:command]];
+    if (path == nil) {
+        [self showMessage:[NSString stringWithFormat:@"Команда %@ не найдена", command]];
+        return;
+    }
+
+    NSMutableArray<NSString *> *allArguments = [NSMutableArray arrayWithObject:command];
+    [allArguments addObjectsFromArray:arguments];
+    char **argv = calloc(allArguments.count + 1, sizeof(char *));
+    if (argv == NULL) {
+        [self showMessage:@"Не удалось выделить память для запуска команды"];
+        return;
+    }
+    for (NSUInteger index = 0; index < allArguments.count; index++) {
+        argv[index] = (char *)[allArguments[index] UTF8String];
+    }
+
+    pid_t pid = 0;
+    int result = posix_spawn(&pid, path.fileSystemRepresentation, NULL, NULL, argv, environ);
+    free(argv);
+    if (result != 0) {
+        [self showMessage:[NSString stringWithFormat:@"Ошибка запуска %@: %s", command, strerror(result)]];
+        return;
+    }
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        int status = 0;
+        pid_t waited = waitpid(pid, &status, 0);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (waited < 0) {
+                [weakSelf showMessage:[NSString stringWithFormat:@"Не удалось получить результат команды %@", command]];
+            } else if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                [weakSelf showMessage:[NSString stringWithFormat:@"%@ завершилась с кодом %d", command, WEXITSTATUS(status)]];
+            } else if (WIFSIGNALED(status)) {
+                [weakSelf showMessage:[NSString stringWithFormat:@"%@ завершилась по сигналу %d", command, WTERMSIG(status)]];
+            } else if (successMessage.length > 0) {
+                [weakSelf showMessage:successMessage];
+            }
+        });
+    });
+}
+
+- (void)copyReport {
+    NSNumber *usedMemory = [IFetchCore usedMemoryBytes];
+    NSNumber *usedStorage = [IFetchCore usedStorageBytes];
+    NSString *report = [NSString stringWithFormat:
+        @"iFetch 2.0.0\n"
+         "Устройство: %@ (%@)\n"
+         "iOS: %@\n"
+         "Архитектура: %@\n"
+         "Ядро: %@\n"
+         "Аптайм: %@\n"
+         "ОЗУ занято: %@\n"
+         "Диск занято: %@\n"
+         "Jailbreak: %@\n"
+         "Хук-инжектор: %@\n"
+         "Пакеты: %ld\n"
+         "Активные твики: %ld\n"
+         "Новые crash-логи: %ld\n"
+         "Локальный IP: %@\n"
+         "Публичный IP: %@",
+         self.device.modelName, self.device.identifier,
+         [UIDevice currentDevice].systemVersion,
+         self.device.architectureName,
+         [IFetchCore darwinVersion],
+         [IFetchCore systemUptime],
+         usedMemory ? [IFetchCore formatBytes:usedMemory.unsignedLongLongValue] : @"Недоступно",
+         usedStorage ? [IFetchCore formatBytes:usedStorage.unsignedLongLongValue] : @"Недоступно",
+         self.jailbreak.environmentName,
+         self.jailbreak.injectorDescription,
+         (long)self.jailbreak.installedPackageCount,
+         (long)self.jailbreak.activeTweakCount,
+         (long)self.jailbreak.recentCrashCount,
+         self.networkSnapshot.localIPAddress,
+         self.publicIPAddress];
+    [UIPasteboard generalPasteboard].string = report;
+    [self showMessage:@"Системный отчёт скопирован"];
+}
+
+- (void)showMessage:(NSString *)message {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"iFetch"
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 @end
