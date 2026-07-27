@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://weekanya.github.io/iFetch/ifetch-banner.png" alt="iFetch" width="100%">
+  <img src="repo/ifetch-banner.png" alt="iFetch" width="100%">
 </div>
 
 <div align="center">
@@ -21,8 +21,8 @@ English is used by default. Russian can be selected under
 and the command-line tool.
 
 <div align="center">
-  <img src="https://weebio.ru/sfc/s2.png" alt="iFetch overview" width="48%">
-  <img src="https://weebio.ru/sfc/s1.png" alt="iFetch system information" width="48%">
+  <img src="assets/en1.png" alt="iFetch overview" width="48%">
+  <img src="assets/en2.png" alt="iFetch diagnostics" width="48%">
 </div>
 
 ## System information

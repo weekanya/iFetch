@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://weekanya.github.io/iFetch/ifetch-banner.png" alt="iFetch" width="100%">
+  <img src="repo/ifetch-banner.png" alt="iFetch" width="100%">
 </div>
 
 <div align="center">
@@ -20,8 +20,8 @@ crash-логов, информация о твиках, модуль Control Cen
 приложения и консольной команды.
 
 <div align="center">
-  <img src="https://weebio.ru/sfc/s2.png" alt="Главный экран iFetch" width="48%">
-  <img src="https://weebio.ru/sfc/s1.png" alt="Системная информация iFetch" width="48%">
+  <img src="assets/ru1.png" alt="Главный экран iFetch" width="48%">
+  <img src="assets/ru2.png" alt="Диагностика iFetch" width="48%">
 </div>
 
 ## Системная информация
