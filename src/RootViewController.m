@@ -1,5 +1,7 @@
 #import "RootViewController.h"
 #import "IFetchCore.h"
+#import "IFDiagnostics.h"
+#import "DiagnosticsViewController.h"
 
 #import <spawn.h>
 #import <sys/wait.h>
@@ -53,7 +55,27 @@ static NSString *IFT(NSString *english, NSString *russian) {
     self.tableView.cellLayoutMarginsFollowReadableWidth = YES;
     [self setupHeader];
     [self fetchPublicIPAddress];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"waveform.path.ecg"]
+                                                                              style:UIBarButtonItemStylePlain
+                                                                             target:self
+                                                                             action:@selector(showDiagnostics)];
+    self.navigationItem.rightBarButtonItem.accessibilityLabel = IFT(@"Diagnostics", @"Диагностика");
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopLiveUpdates)
+                                                 name:UIApplicationDidEnterBackgroundNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(startLiveUpdates)
+                                                 name:UIApplicationWillEnterForegroundNotification object:nil];
+    [self startLiveUpdates];
+}
 
+- (void)dealloc {
+    [self.refreshTimer invalidate];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)startLiveUpdates {
+    if (self.refreshTimer != nil) {
+        return;
+    }
     self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
                                                         target:self
                                                       selector:@selector(refreshLiveData:)
@@ -61,8 +83,13 @@ static NSString *IFT(NSString *english, NSString *russian) {
                                                        repeats:YES];
 }
 
-- (void)dealloc {
+- (void)stopLiveUpdates {
     [self.refreshTimer invalidate];
+    self.refreshTimer = nil;
+}
+
+- (void)showDiagnostics {
+    [self.navigationController pushViewController:[[IFDiagnosticsViewController alloc] init] animated:YES];
 }
 
 - (void)setupHeader {
@@ -426,7 +453,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
                              command:@"launchctl"
                            arguments:@[@"reboot", @"userspace"]];
     } else if (indexPath.section == 3) {
-        [self copyReport];
+        [self showExportOptions];
     }
 }
 
@@ -549,7 +576,27 @@ static NSString *IFT(NSString *english, NSString *russian) {
     });
 }
 
-- (void)copyReport {
+- (void)showExportOptions {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:IFT(@"System report", @"Системный отчёт")
+                                                                   message:IFT(@"Choose whether network addresses should be hidden.",
+                                                                               @"Выберите, нужно ли скрыть сетевые адреса.")
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    __weak typeof(self) weakSelf = self;
+    [sheet addAction:[UIAlertAction actionWithTitle:IFT(@"Copy private report", @"Копировать приватный отчёт")
+                                             style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf copyReportRedacted:YES];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:IFT(@"Copy full report", @"Копировать полный отчёт")
+                                             style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [weakSelf copyReportRedacted:NO];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:IFT(@"Cancel", @"Отмена") style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.view;
+    sheet.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMaxY(self.view.bounds), 1, 1);
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)copyReportRedacted:(BOOL)redacted {
     NSNumber *usedMemory = [IFetchCore usedMemoryBytes];
     NSNumber *usedStorage = [IFetchCore usedStorageBytes];
     NSString *reportFormat = IFT(
@@ -597,8 +644,8 @@ static NSString *IFT(NSString *english, NSString *russian) {
          (long)self.jailbreak.installedPackageCount,
          (long)self.jailbreak.activeTweakCount,
          (long)self.jailbreak.recentCrashCount,
-         self.networkSnapshot.localIPAddress,
-         self.publicIPAddress];
+         redacted ? [IFDiagnostics redactedAddress:self.networkSnapshot.localIPAddress] : self.networkSnapshot.localIPAddress,
+         redacted ? [IFDiagnostics redactedAddress:self.publicIPAddress] : self.publicIPAddress];
     [UIPasteboard generalPasteboard].string = report;
     [self showMessage:IFT(@"System report copied", @"Системный отчёт скопирован")];
 }
