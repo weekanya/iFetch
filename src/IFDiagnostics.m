@@ -2,7 +2,7 @@
 
 #import <SystemConfiguration/CaptiveNetwork.h>
 #import <NetworkExtension/NetworkExtension.h>
-#import <arpa/inet.h>
+#import <arpa/inet.h>Ф
 #import <dlfcn.h>
 #import <ifaddrs.h>
 #import <mach/mach.h>
@@ -49,6 +49,103 @@ static NSNumber *IFNumberForKeys(NSDictionary *dictionary, NSArray<NSString *> *
     return nil;
 }
 
+static NSString *IFStringFromWiFiValue(CFTypeRef value) {
+    if (value == NULL) {
+        return @"";
+    }
+    if (CFGetTypeID(value) == CFStringGetTypeID()) {
+        return [(__bridge NSString *)value copy];
+    }
+    if (CFGetTypeID(value) == CFDataGetTypeID()) {
+        NSData *data = (__bridge NSData *)value;
+        NSString *string = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        if (string.length > 0) {
+            return string;
+        }
+        if (data.length == 6) {
+            const uint8_t *bytes = data.bytes;
+            return [NSString stringWithFormat:@"%02x:%02x:%02x:%02x:%02x:%02x",
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]];
+        }
+    }
+    return @"";
+}
+
+// CaptiveNetwork and NEHotspotNetwork may deliberately return an empty result
+// for system/rootless apps on some iOS 14–17 jailbreak combinations. MobileWiFi
+// is used only as a fallback and is loaded dynamically to keep older releases
+// compatible.
+static NSDictionary<NSString *, NSString *> *IFMobileWiFiInfo(void) {
+    typedef CFTypeRef (*IFWiFiManagerCreateFn)(CFAllocatorRef, CFTypeRef);
+    typedef CFArrayRef (*IFWiFiManagerCopyDevicesFn)(CFTypeRef);
+    typedef CFTypeRef (*IFWiFiDeviceCopyCurrentNetworkFn)(CFTypeRef);
+    typedef CFTypeRef (*IFWiFiNetworkGetValueFn)(CFTypeRef);
+    typedef CFTypeRef (*IFWiFiNetworkGetPropertyFn)(CFTypeRef, CFStringRef);
+
+    NSString *ssid = @"";
+    NSString *bssid = @"";
+    void *handle = dlopen("/System/Library/PrivateFrameworks/MobileWiFi.framework/MobileWiFi",
+                          RTLD_LAZY | RTLD_LOCAL);
+    if (handle == NULL) {
+        return @{@"ssid": ssid, @"bssid": bssid};
+    }
+
+    IFWiFiManagerCreateFn createManager = (IFWiFiManagerCreateFn)dlsym(handle, "WiFiManagerClientCreate");
+    IFWiFiManagerCopyDevicesFn copyDevices = (IFWiFiManagerCopyDevicesFn)dlsym(handle, "WiFiManagerClientCopyDevices");
+    IFWiFiDeviceCopyCurrentNetworkFn copyCurrentNetwork =
+        (IFWiFiDeviceCopyCurrentNetworkFn)dlsym(handle, "WiFiDeviceClientCopyCurrentNetwork");
+    IFWiFiNetworkGetValueFn getSSID = (IFWiFiNetworkGetValueFn)dlsym(handle, "WiFiNetworkGetSSID");
+    IFWiFiNetworkGetValueFn getLastBSSID = (IFWiFiNetworkGetValueFn)dlsym(handle, "WiFiNetworkGetLastBSSID");
+    IFWiFiNetworkGetValueFn copyBSSIDData = (IFWiFiNetworkGetValueFn)dlsym(handle, "WiFiNetworkCopyBSSIDData");
+    IFWiFiNetworkGetPropertyFn getProperty =
+        (IFWiFiNetworkGetPropertyFn)dlsym(handle, "WiFiNetworkGetProperty");
+
+    if (createManager == NULL || copyCurrentNetwork == NULL) {
+        dlclose(handle);
+        return @{@"ssid": ssid, @"bssid": bssid};
+    }
+
+    CFTypeRef manager = createManager(kCFAllocatorDefault, NULL);
+    CFArrayRef devices = manager != NULL && copyDevices != NULL ? copyDevices(manager) : NULL;
+    CFTypeRef device = NULL;
+    if (devices != NULL && CFArrayGetCount(devices) > 0) {
+        device = CFArrayGetValueAtIndex(devices, 0);
+    }
+
+    CFTypeRef network = device != NULL ? copyCurrentNetwork(device) : NULL;
+    if (network != NULL) {
+        if (getSSID != NULL) {
+            ssid = IFStringFromWiFiValue(getSSID(network));
+        }
+        if (ssid.length == 0 && getProperty != NULL) {
+            ssid = IFStringFromWiFiValue(getProperty(network, CFSTR("SSID")));
+        }
+
+        if (getProperty != NULL) {
+            bssid = IFStringFromWiFiValue(getProperty(network, CFSTR("BSSID")));
+        }
+        if (bssid.length == 0 && getLastBSSID != NULL) {
+            bssid = IFStringFromWiFiValue(getLastBSSID(network));
+        }
+        if (bssid.length == 0 && copyBSSIDData != NULL) {
+            CFTypeRef data = copyBSSIDData(network);
+            bssid = IFStringFromWiFiValue(data);
+            if (data != NULL) {
+                CFRelease(data);
+            }
+        }
+        CFRelease(network);
+    }
+    if (devices != NULL) {
+        CFRelease(devices);
+    }
+    if (manager != NULL) {
+        CFRelease(manager);
+    }
+    dlclose(handle);
+    return @{@"ssid": ssid ?: @"", @"bssid": bssid ?: @""};
+}
+
 static NSDictionary<NSString *, NSString *> *IFCurrentWiFiInfo(void) {
     __block NSString *ssid = @"";
     __block NSString *bssid = @"";
@@ -77,6 +174,15 @@ static NSDictionary<NSString *, NSString *> *IFCurrentWiFiInfo(void) {
                 bssid = network[(NSString *)kCNNetworkInfoKeyBSSID] ?: @"";
                 break;
             }
+        }
+    }
+    if (ssid.length == 0 || bssid.length == 0) {
+        NSDictionary<NSString *, NSString *> *privateInfo = IFMobileWiFiInfo();
+        if (ssid.length == 0) {
+            ssid = privateInfo[@"ssid"] ?: @"";
+        }
+        if (bssid.length == 0) {
+            bssid = privateInfo[@"bssid"] ?: @"";
         }
     }
     return @{@"ssid": ssid, @"bssid": bssid};
