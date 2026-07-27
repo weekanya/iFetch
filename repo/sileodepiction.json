@@ -1,43 +1,61 @@
 {
-    "minVersion": "0.1",
-    "headerImage": "https://weebio.ru/sfc/ifetch-banner.png",
-    "tintColor": "#007AFF",
-    "tabs": [
+  "minVersion": "0.1",
+  "headerImage": "https://weekanya.github.io/iFetch/ifetch-banner.png",
+  "tintColor": "#007AFF",
+  "tabs": [
+    {
+      "tabname": "Overview",
+      "views": [
         {
-            "tabname": "Описание",
-            "views": [
-                {
-                    "class": "DepictionMarkdownView",
-                    "markdown": "### Нативный системный дашборд и CLI\nМониторинг jailbreak-устройства на iOS 14–17: реальные характеристики, процессы, сеть и среда хук-инжектора. В комплекте консольная команда `ifetch` для SSH и NewTerm."
-                },
-                {
-                    "class": "DepictionSeparatorView"
-                },
-                {
-                    "class": "DepictionHeaderView",
-                    "title": "Возможности"
-                },
-                {
-                    "class": "DepictionMarkdownView",
-                    "markdown": "- Автоопределение поддерживаемых моделей iPhone\n- Top-3 процессов по ОЗУ и CPU\n- Скорость сети, DNS, VPN, локальный и публичный IP\n- Версия ElleKit, Substrate, libhooker или Substitute\n- Новые crash-логи за 24 часа\n- Безопасные системные действия с подтверждением\n- CLI-команда `ifetch`"
-                }
-            ],
-            "class": "DepictionStackView"
+          "class": "DepictionMarkdownView",
+          "markdown": "### Native diagnostics for rootless jailbreaks\n\niFetch 3.0 combines live system charts, detailed battery data, a process explorer, crash-log viewer, tweak inspection, Jailbreak Health checks, advanced networking, a Control Center module, and the `ifetch` command for SSH and NewTerm."
         },
         {
-            "tabname": "Чейнджлог",
-            "views": [
-                {
-                    "class": "DepictionSubheaderView",
-                    "title": "Версия 2.1.0"
-                },
-                {
-                    "class": "DepictionMarkdownView",
-                    "markdown": "- Английский интерфейс по умолчанию\n- Переключение между English и Русским в настройках\n- Выбранный язык используется приложением и CLI\n- Поддержка iOS 14–17 и arm64/arm64e-устройств\n- Отдельные изображения всех поддерживаемых моделей\n- Мониторинг процессов, сети и jailbreak-среды\n- Консольная команда `ifetch`\n- Исправленные системные действия и адаптивная вёрстка"
-                }
-            ],
-            "class": "DepictionStackView"
+          "class": "DepictionSeparatorView"
+        },
+        {
+          "class": "DepictionHeaderView",
+          "title": "Highlights"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "- Five-minute CPU, RAM, network, charge, and temperature history\n- Battery health, capacity, current, voltage, cycles, and charging power\n- Top-50 process explorer with sustained CPU-load warnings\n- Crash-log preview and sharing\n- Searchable tweak list with package and injection-filter details\n- IPv4/IPv6, DNS, Wi-Fi, cellular, VPN, traffic totals, and latency\n- Privacy-redacted diagnostic reports\n- Control Center status module\n- `ifetch --watch`, `--json`, `--network`, and `--battery`"
         }
-    ],
-    "class": "DepictionTabView"
+      ],
+      "class": "DepictionStackView"
+    },
+    {
+      "tabname": "Русский",
+      "views": [
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "### Диагностика rootless-устройства\n\niFetch 3.0 показывает графики CPU, ОЗУ, сети, заряда и температуры, подробные данные батареи, процессы, crash-логи, установленные твики и состояние jailbreak. В комплект входят модуль Control Center и расширенная команда `ifetch` для SSH и NewTerm."
+        },
+        {
+          "class": "DepictionHeaderView",
+          "title": "Что нового"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "- История системных показателей за пять минут\n- Здоровье и параметры аккумулятора\n- Top-50 процессов и предупреждения о длительной нагрузке\n- Просмотр и отправка crash-логов\n- Поиск по твикам и фильтрам инъекции\n- IPv4/IPv6, DNS, Wi-Fi, сотовая сеть, VPN и задержка\n- Приватный экспорт отчёта\n- Модуль Control Center\n- Режимы CLI `--watch`, `--json`, `--network` и `--battery`"
+        }
+      ],
+      "class": "DepictionStackView"
+    },
+    {
+      "tabname": "Changelog",
+      "views": [
+        {
+          "class": "DepictionSubheaderView",
+          "title": "Version 3.0.0"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "A complete diagnostics update with new monitoring screens, expanded CLI, Control Center integration, privacy controls, externalized localization and device metadata, and more efficient background behavior."
+        }
+      ],
+      "class": "DepictionStackView"
+    }
+  ],
+  "class": "DepictionTabView"
 }
