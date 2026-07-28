@@ -1,9 +1,11 @@
 #import "IFAdvancedDiagnostics.h"
 
+#import <UIKit/UIKit.h>
 #import <UserNotifications/UserNotifications.h>
 #import <arpa/inet.h>
 #import <dlfcn.h>
 #import <netinet/in.h>
+#import <objc/message.h>
 #import <spawn.h>
 #import <string.h>
 #import <sys/socket.h>
@@ -14,6 +16,59 @@ extern char **environ;
 
 static NSString *IFA(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];
+}
+
+static BOOL IFAAuthorizedNotificationStatus(UNAuthorizationStatus status) {
+    return status == UNAuthorizationStatusAuthorized ||
+        status == UNAuthorizationStatusProvisional ||
+        status == UNAuthorizationStatusEphemeral;
+}
+
+static void IFAStoreAlertsState(BOOL enabled) {
+    [NSUserDefaults.standardUserDefaults setBool:enabled forKey:@"IFetchAlertsEnabled"];
+    if (enabled) {
+        [NSUserDefaults.standardUserDefaults setInteger:[IFetchCore jailbreakInfo].recentCrashCount
+                                                 forKey:@"IFetchObservedCrashCount"];
+    }
+    [NSUserDefaults.standardUserDefaults synchronize];
+}
+
+static void IFARegisterLegacyNotificationSettings(void) {
+    void (^registrationBlock)(void) = ^{
+        Class settingsClass = NSClassFromString(@"UIUserNotificationSettings");
+        SEL factory = NSSelectorFromString(@"settingsForTypes:categories:");
+        SEL registration = NSSelectorFromString(@"registerUserNotificationSettings:");
+        UIApplication *application = UIApplication.sharedApplication;
+        if (settingsClass == Nil || ![settingsClass respondsToSelector:factory] ||
+            ![application respondsToSelector:registration]) {
+            return;
+        }
+        id settings = ((id (*)(id, SEL, NSUInteger, id))objc_msgSend)
+            (settingsClass, factory, 7, nil);
+        if (settings != nil) {
+            ((void (*)(id, SEL, id))objc_msgSend)(application, registration, settings);
+        }
+    };
+    if (NSThread.isMainThread) {
+        registrationBlock();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), registrationBlock);
+    }
+}
+
+static void IFAScheduleAlertsEnabledConfirmation(void) {
+    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+    content.title = @"iFetch";
+    content.body = IFA(@"Health alerts are enabled.", @"Уведомления о состоянии включены.");
+    content.sound = UNNotificationSound.defaultSound;
+    content.userInfo = @{@"destination": @"advanced"};
+    UNTimeIntervalNotificationTrigger *trigger =
+        [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:1 repeats:NO];
+    UNNotificationRequest *request =
+        [UNNotificationRequest requestWithIdentifier:@"ifetch.alerts.enabled"
+                                             content:content trigger:trigger];
+    [[UNUserNotificationCenter currentNotificationCenter]
+        addNotificationRequest:request withCompletionHandler:nil];
 }
 
 @implementation IFProcessConnection
@@ -782,34 +837,62 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
     return [NSUserDefaults.standardUserDefaults boolForKey:@"IFetchAlertsEnabled"];
 }
 
++ (void)refreshAlertsAuthorizationWithCompletion:(void (^)(BOOL))completion {
+    [[UNUserNotificationCenter currentNotificationCenter]
+        getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+        BOOL authorized = IFAAuthorizedNotificationStatus(settings.authorizationStatus);
+        IFAStoreAlertsState(authorized);
+        if (completion != nil) {
+            completion(authorized);
+        }
+    }];
+}
+
 + (void)setAlertsEnabled:(BOOL)enabled completion:(void (^)(BOOL))completion {
     if (!enabled) {
-        [NSUserDefaults.standardUserDefaults setBool:NO forKey:@"IFetchAlertsEnabled"];
+        IFAStoreAlertsState(NO);
         if (completion != nil) {
             completion(NO);
         }
         return;
     }
-    [[UNUserNotificationCenter currentNotificationCenter]
-        requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound
-                      completionHandler:^(__unused BOOL granted, __unused NSError *error) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            [[UNUserNotificationCenter currentNotificationCenter]
-                getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
-                BOOL authorized = settings.authorizationStatus == UNAuthorizationStatusAuthorized ||
-                    settings.authorizationStatus == UNAuthorizationStatusProvisional ||
-                    settings.authorizationStatus == UNAuthorizationStatusEphemeral;
-                [NSUserDefaults.standardUserDefaults setBool:authorized forKey:@"IFetchAlertsEnabled"];
-                if (authorized) {
-                    [NSUserDefaults.standardUserDefaults setInteger:[IFetchCore jailbreakInfo].recentCrashCount
-                                                             forKey:@"IFetchObservedCrashCount"];
-                }
+    UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *current) {
+        if (IFAAuthorizedNotificationStatus(current.authorizationStatus)) {
+            IFAStoreAlertsState(YES);
+            IFAScheduleAlertsEnabledConfirmation();
+            if (completion != nil) {
+                completion(YES);
+            }
+            return;
+        }
+        IFARegisterLegacyNotificationSettings();
+        [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert |
+                                                UNAuthorizationOptionSound |
+                                                UNAuthorizationOptionBadge
+                              completionHandler:^(BOOL granted, __unused NSError *requestError) {
+            if (granted) {
+                IFAStoreAlertsState(YES);
+                IFAScheduleAlertsEnabledConfirmation();
                 if (completion != nil) {
-                    completion(authorized);
+                    completion(YES);
                 }
-            }];
-        });
+                return;
+            }
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.25 * NSEC_PER_SEC)),
+                           dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+                    BOOL authorized = IFAAuthorizedNotificationStatus(settings.authorizationStatus);
+                    IFAStoreAlertsState(authorized);
+                    if (authorized) {
+                        IFAScheduleAlertsEnabledConfirmation();
+                    }
+                    if (completion != nil) {
+                        completion(authorized);
+                    }
+                }];
+            });
+        }];
     }];
 }
 

@@ -21,7 +21,8 @@ IFetch_FILES = \
 	app/IFWidgetBridge.swift \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m \
-	core/IFAdvancedDiagnostics.m
+	core/IFAdvancedDiagnostics.m \
+	core/IFWidgetPreferences.m
 IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications WidgetKit
 IFetch_RESOURCE_DIRS = resources
 IFetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
@@ -53,7 +54,8 @@ IFetchModule_BUNDLE_RESOURCE_DIRS = packaging/ControlCenterModule
 
 IFetchWidgets_FILES = \
 	widgets/IFetchWidgets.swift \
-	widgets/IFWidgetMetrics.m
+	widgets/IFWidgetMetrics.m \
+	core/IFWidgetPreferences.m
 IFetchWidgets_FRAMEWORKS = SwiftUI WidgetKit UIKit Foundation
 IFetchWidgets_INSTALL_PATH = /Applications/IFetch.app/PlugIns
 IFetchWidgets_RESOURCE_DIRS = packaging/WidgetExtension

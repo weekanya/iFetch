@@ -33,6 +33,8 @@
     <string>14.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>SBAppUsesLocalNotifications</key>
+    <true/>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

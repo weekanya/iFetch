@@ -1,6 +1,7 @@
 #import "IFAdvancedViewControllers.h"
 
 #import "../core/IFAdvancedDiagnostics.h"
+#import "../core/IFWidgetPreferences.h"
 #import <objc/message.h>
 #import <spawn.h>
 #import <sys/stat.h>
@@ -39,13 +40,8 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     return index == NSNotFound ? fallback : (NSInteger)index;
 }
 
-static NSString *IFAVWidgetPreferencesPath(void) {
-    return @"/var/mobile/Library/Preferences/com.wee1ka.ifetch.widget.plist";
-}
-
 static NSDictionary *IFAVWidgetPreferences(void) {
-    NSDictionary *preferences = [NSDictionary dictionaryWithContentsOfFile:IFAVWidgetPreferencesPath()];
-    return [preferences isKindOfClass:[NSDictionary class]] ? preferences : @{};
+    return IFWidgetPreferencesRead();
 }
 
 static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
@@ -55,9 +51,9 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
     } else {
         [preferences removeObjectForKey:key];
     }
-    BOOL saved = [preferences writeToFile:IFAVWidgetPreferencesPath() atomically:YES];
+    NSError *error = nil;
+    BOOL saved = IFWidgetPreferencesWrite(preferences, &error);
     if (saved) {
-        chmod(IFAVWidgetPreferencesPath().fileSystemRepresentation, 0644);
         Class bridge = NSClassFromString(@"IFWidgetBridge");
         SEL selector = NSSelectorFromString(@"reload");
         if (bridge != Nil && [bridge respondsToSelector:selector]) {
@@ -524,6 +520,15 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
     self.title = IFAV(@"Alerts and widgets", @"Уведомления и виджеты");
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [IFAdvancedDiagnostics refreshAlertsAuthorizationWithCompletion:^(__unused BOOL granted) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.tableView reloadData];
+        });
+    }];
+}
+
 - (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView {
     return 2;
 }
@@ -541,7 +546,8 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
     return section == 0
         ? IFAV(@"Alerts are generated during active iFetch monitoring for high memory, CPU, temperature and new crashes.",
                @"Во время активного мониторинга iFetch сообщает о высокой загрузке ОЗУ, CPU, температуре и новых сбоях.")
-        : IFAV(@"Changes appear on the next WidgetKit refresh.", @"Изменения появятся при следующем обновлении WidgetKit.");
+        : IFAV(@"Changes are saved directly to the widget container and applied immediately.",
+               @"Изменения сохраняются прямо в контейнер виджета и применяются сразу.");
 }
 
 - (UITableViewCell *)segmentedCell:(UITableView *)tableView title:(NSString *)title
@@ -602,8 +608,22 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
             toggle.on = granted;
             toggle.enabled = YES;
             if (requested && !granted) {
-                IFAVShowMessage(self, @"iFetch", IFAV(@"Notification permission was not granted.",
-                                                       @"Разрешение на уведомления не предоставлено."));
+                UIAlertController *alert = [UIAlertController
+                    alertControllerWithTitle:@"iFetch"
+                                     message:IFAV(@"Notifications are disabled for iFetch. Enable them in iOS Settings.",
+                                                  @"Уведомления для iFetch отключены. Включите их в настройках iOS.")
+                              preferredStyle:UIAlertControllerStyleAlert];
+                [alert addAction:[UIAlertAction actionWithTitle:IFAV(@"Cancel", @"Отмена")
+                                                          style:UIAlertActionStyleCancel handler:nil]];
+                [alert addAction:[UIAlertAction actionWithTitle:IFAV(@"Open Settings", @"Открыть настройки")
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+                    NSURL *url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
+                    if (url != nil) {
+                        [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];
+                    }
+                }]];
+                [self presentViewController:alert animated:YES completion:nil];
             }
         });
     }];

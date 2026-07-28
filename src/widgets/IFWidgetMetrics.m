@@ -1,5 +1,6 @@
 #import "IFWidgetMetrics.h"
 
+#import "../core/IFWidgetPreferences.h"
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import <mach/mach.h>
@@ -148,7 +149,7 @@ static NSString *IFWidgetFormatBytes(uint64_t bytes) {
 
 + (NSDictionary<NSString *, id> *)snapshot {
     NSDictionary *preferences = [NSDictionary dictionaryWithContentsOfFile:@"/var/mobile/Library/Preferences/com.wee1ka.ifetch.plist"];
-    NSDictionary *widgetPreferences = [NSDictionary dictionaryWithContentsOfFile:@"/var/mobile/Library/Preferences/com.wee1ka.ifetch.widget.plist"];
+    NSDictionary *widgetPreferences = IFWidgetPreferencesRead();
     BOOL russian = [preferences[@"IFetchLanguage"] isEqualToString:@"ru"];
     NSString *accent = [widgetPreferences[@"accent"] isKindOfClass:[NSString class]]
         ? widgetPreferences[@"accent"] : @"cyan";
