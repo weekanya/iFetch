@@ -3,6 +3,7 @@
 #import "../core/IFAdvancedDiagnostics.h"
 #import "../core/IFWidgetPreferences.h"
 #import <objc/message.h>
+#import <signal.h>
 #import <spawn.h>
 #import <sys/stat.h>
 #import <sys/wait.h>
@@ -40,6 +41,33 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     return index == NSNotFound ? fallback : (NSInteger)index;
 }
 
+static void IFAVReloadWidgetTimelines(void) {
+    Class bridge = NSClassFromString(@"IFWidgetBridge");
+    SEL selector = NSSelectorFromString(@"reload");
+    if (bridge != Nil && [bridge respondsToSelector:selector]) {
+        ((void (*)(id, SEL))objc_msgSend)(bridge, selector);
+    }
+}
+
+static void IFAVRestartWidgetExtension(void) {
+    IFProcessMonitor *monitor = [[IFProcessMonitor alloc] init];
+    for (IFProcessSample *process in monitor.allProcesses) {
+        if (process.pid > 0 &&
+            [process.executablePath containsString:@"/IFetchWidgets.appex/IFetchWidgets"]) {
+            kill(process.pid, SIGTERM);
+        }
+    }
+    IFAVReloadWidgetTimelines();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        IFAVReloadWidgetTimelines();
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        IFAVReloadWidgetTimelines();
+    });
+}
+
 static NSDictionary *IFAVWidgetPreferences(void) {
     return IFWidgetPreferencesRead();
 }
@@ -54,11 +82,7 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
     NSError *error = nil;
     BOOL saved = IFWidgetPreferencesWrite(preferences, &error);
     if (saved) {
-        Class bridge = NSClassFromString(@"IFWidgetBridge");
-        SEL selector = NSSelectorFromString(@"reload");
-        if (bridge != Nil && [bridge respondsToSelector:selector]) {
-            ((void (*)(id, SEL))objc_msgSend)(bridge, selector);
-        }
+        IFAVRestartWidgetExtension();
     }
     return saved;
 }
@@ -510,9 +534,6 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 
 @end
 
-@interface IFPreferencesViewController : UITableViewController
-@end
-
 @implementation IFPreferencesViewController
 
 - (void)viewDidLoad {
@@ -530,24 +551,31 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 }
 
 - (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView {
-    return 2;
+    return 3;
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return section == 0 ? 1 : 4;
+    return section == 0 ? 1 : (section == 1 ? 4 : 1);
 }
 
 - (NSString *)tableView:(__unused UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return section == 0 ? IFAV(@"System alerts", @"Системные уведомления")
-                        : IFAV(@"Widget appearance", @"Настройка виджетов");
+    if (section == 0) {
+        return IFAV(@"System alerts", @"Системные уведомления");
+    }
+    return section == 1 ? IFAV(@"Widget appearance", @"Настройка виджетов")
+                        : IFAV(@"Widget maintenance", @"Обслуживание виджета");
 }
 
 - (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    return section == 0
-        ? IFAV(@"Alerts are generated during active iFetch monitoring for high memory, CPU, temperature and new crashes.",
-               @"Во время активного мониторинга iFetch сообщает о высокой загрузке ОЗУ, CPU, температуре и новых сбоях.")
-        : IFAV(@"Changes are saved directly to the widget container and applied immediately.",
-               @"Изменения сохраняются прямо в контейнер виджета и применяются сразу.");
+    if (section == 0) {
+        return IFAV(@"Alerts are generated during active iFetch monitoring for high memory, CPU, temperature and new crashes.",
+                    @"Во время активного мониторинга iFetch сообщает о высокой загрузке ОЗУ, CPU, температуре и новых сбоях.");
+    }
+    return section == 1
+        ? IFAV(@"Changes are saved directly to the widget container and applied immediately.",
+               @"Изменения сохраняются прямо в контейнер виджета и применяются сразу.")
+        : IFAV(@"Restarts only the iFetch widget extension and requests a new timeline.",
+               @"Перезапускает только расширение виджета iFetch и запрашивает новую временную шкалу.");
 }
 
 - (UITableViewCell *)segmentedCell:(UITableView *)tableView title:(NSString *)title
@@ -568,6 +596,14 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
         toggle.on = [IFAdvancedDiagnostics alertsEnabled];
         [toggle addTarget:self action:@selector(alertsChanged:) forControlEvents:UIControlEventValueChanged];
         cell.accessoryView = toggle;
+        return cell;
+    }
+    if (indexPath.section == 2) {
+        UITableViewCell *cell = IFAVCell(tableView, @"IFWidgetRefresh",
+            IFAV(@"Update widgets now", @"Обновить виджеты сейчас"), @"");
+        cell.textLabel.textAlignment = NSTextAlignmentCenter;
+        cell.textLabel.textColor = UIColor.systemBlueColor;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
         return cell;
     }
     NSDictionary *widgetPreferences = IFAVWidgetPreferences();
@@ -598,6 +634,17 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
                          items:@[IFAV(@"Overview", @"Сводка"), IFAV(@"Diagnostics", @"Диагностика"),
                                  IFAV(@"Advanced", @"4.0")]
                       selected:IFAVSelectedIndex(values, value, 1) tag:103];
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.section != 2) {
+        return;
+    }
+    IFAVRestartWidgetExtension();
+    IFAVShowMessage(self, @"iFetch",
+        IFAV(@"Widget refresh requested. Return to the Home Screen to see the updated widget.",
+             @"Обновление запрошено. Вернитесь на экран «Домой», чтобы увидеть обновлённый виджет."));
 }
 
 - (void)alertsChanged:(UISwitch *)toggle {
@@ -664,7 +711,7 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
-    return 5;
+    return 4;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -672,18 +719,16 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
         IFAV(@"System snapshots", @"Снимки системы"),
         IFAV(@"Injection map", @"Карта инъекций"),
         @"LaunchDaemons",
-        IFAV(@"Diagnostic mode", @"Режим диагностики"),
-        IFAV(@"Alerts and widgets", @"Уведомления и виджеты")
+        IFAV(@"Diagnostic mode", @"Режим диагностики")
     ];
     NSArray *details = @[
         IFAV(@"Compare processes, packages, tweaks and daemons", @"Сравнение процессов, пакетов, твиков и демонов"),
         IFAV(@"Tweak filters grouped by target process", @"Фильтры твиков по целевым процессам"),
         IFAV(@"Bootstrap daemon state and executable paths", @"Состояние демонов и пути запуска"),
-        IFAV(@"Temporarily disable and restore third-party tweaks", @"Временное отключение и возврат сторонних твиков"),
-        IFAV(@"Health warnings and widget appearance", @"Предупреждения и оформление виджетов")
+        IFAV(@"Temporarily disable and restore third-party tweaks", @"Временное отключение и возврат сторонних твиков")
     ];
     NSArray *symbols = @[@"square.stack.3d.up", @"point.3.connected.trianglepath.dotted",
-                         @"gearshape.2", @"stethoscope", @"slider.horizontal.3"];
+                         @"gearshape.2", @"stethoscope"];
     UITableViewCell *cell = IFAVCell(tableView, @"IFAdvancedMenu", titles[indexPath.row], details[indexPath.row]);
     cell.imageView.image = [UIImage systemImageNamed:symbols[indexPath.row]];
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -697,8 +742,7 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
         [IFSnapshotsViewController class],
         [IFInjectionMapViewController class],
         [IFLaunchDaemonsViewController class],
-        [IFDiagnosticModeViewController class],
-        [IFPreferencesViewController class]
+        [IFDiagnosticModeViewController class]
     ];
     UIViewController *controller = [[classes[indexPath.row] alloc] init];
     [self.navigationController pushViewController:controller animated:YES];

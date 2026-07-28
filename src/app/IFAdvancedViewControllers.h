@@ -8,6 +8,9 @@
 @interface IFIntegrityViewController : UITableViewController
 @end
 
+@interface IFPreferencesViewController : UITableViewController
+@end
+
 @interface IFProcessConnectionsViewController : UITableViewController
 - (instancetype)initWithProcess:(IFProcessSample *)process;
 @end

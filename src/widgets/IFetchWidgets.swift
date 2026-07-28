@@ -143,6 +143,7 @@ struct IFetchRing: View {
 
 struct IFetchHeader: View {
     let entry: IFetchEntry
+    let compact: Bool
 
     var body: some View {
         HStack(spacing: 7) {
@@ -156,15 +157,22 @@ struct IFetchHeader: View {
                 Text("iFetch")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Text(entry.device)
                     .font(.system(size: 8, weight: .medium))
                     .foregroundColor(.white.opacity(0.58))
                     .lineLimit(1)
             }
+            .layoutPriority(1)
             Spacer(minLength: 4)
-            Text(entry.system)
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.72))
+            if !compact {
+                Text(entry.system)
+                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
     }
 }
@@ -195,7 +203,7 @@ struct IFetchSmallView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            IFetchHeader(entry: entry)
+            IFetchHeader(entry: entry, compact: true)
             HStack(spacing: 10) {
                 IFetchRing(value: entry.primaryValue, color: entry.accent, label: entry.primaryTitle)
                     .frame(width: 52, height: 52)
@@ -223,7 +231,7 @@ struct IFetchMediumView: View {
 
     var body: some View {
         VStack(spacing: 11) {
-            IFetchHeader(entry: entry)
+            IFetchHeader(entry: entry, compact: false)
             HStack(spacing: 12) {
                 IFetchRing(value: entry.primaryValue, color: entry.accent, label: entry.primaryTitle)
                     .frame(width: 65, height: 65)
@@ -251,7 +259,7 @@ struct IFetchLargeView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
-            IFetchHeader(entry: entry)
+            IFetchHeader(entry: entry, compact: false)
             HStack(spacing: 18) {
                 IFetchRing(value: entry.primaryValue, color: entry.accent, label: entry.primaryTitle)
                     .frame(width: 88, height: 88)

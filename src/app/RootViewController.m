@@ -192,7 +192,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
         }
     }
     switch (section) {
-        case 0: return 1;
+        case 0: return 2;
         case 1: return 2;
         case 2: return 2;
         case 3: return 1;
@@ -422,10 +422,20 @@ static NSString *IFT(NSString *english, NSString *russian) {
 
 - (UITableViewCell *)toolsCellAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.section == 0) {
-        UITableViewCell *cell = [self standardCellWithTitle:IFT(@"Language", @"Язык")
-                                                     value:[IFLanguageManager isRussian] ? @"Русский" : @"English"];
+        NSArray *titles = @[
+            IFT(@"Language", @"Язык"),
+            IFT(@"Notifications and widgets", @"Уведомления и виджеты")
+        ];
+        NSArray *values = @[
+            [IFLanguageManager isRussian] ? @"Русский" : @"English",
+            IFT(@"Configure", @"Настроить")
+        ];
+        UITableViewCell *cell = [self standardCellWithTitle:titles[(NSUInteger)indexPath.row]
+                                                     value:values[(NSUInteger)indexPath.row]];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        cell.imageView.image = [UIImage systemImageNamed:indexPath.row == 0
+            ? @"globe" : @"bell.badge"];
         return cell;
     }
     if (indexPath.section == 1) {
@@ -452,7 +462,12 @@ static NSString *IFT(NSString *english, NSString *russian) {
     }
 
     if (indexPath.section == 0) {
-        [self showLanguagePicker];
+        if (indexPath.row == 0) {
+            [self showLanguagePicker];
+        } else {
+            [self.navigationController pushViewController:[[IFPreferencesViewController alloc] init]
+                                                 animated:YES];
+        }
     } else if (indexPath.section == 1 && indexPath.row == 0) {
         [self confirmActionWithTitle:IFT(@"Perform Respring?", @"Выполнить Respring?")
                              message:IFT(@"SpringBoard will be restarted.", @"SpringBoard будет перезапущен.")

@@ -976,7 +976,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         IFUI(@"Packages, dylibs and injection filters", @"Пакеты, dylib и фильтры инъекции"),
         IFUI(@"Rootless bootstrap and system status", @"Состояние bootstrap и системы"),
         IFUI(@"IPv4/IPv6, Wi-Fi, cellular and traffic", @"IPv4/IPv6, Wi-Fi, сотовая сеть и трафик"),
-        IFUI(@"Snapshots, integrity, daemons, alerts and widgets", @"Снимки, целостность, демоны, уведомления и виджеты")
+        IFUI(@"Snapshots, injection, daemons and diagnostic mode", @"Снимки, инъекции, демоны и режим диагностики")
     ];
     NSArray *symbols = @[@"chart.xyaxis.line", @"battery.100", @"cpu", @"doc.text.magnifyingglass",
                          @"puzzlepiece.extension", @"heart.text.square", @"network", @"waveform.badge.magnifyingglass"];
