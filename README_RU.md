@@ -8,6 +8,8 @@
 
 # iFetch
 
+[![Сборка rootless-артефакта](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+
 iFetch — набор диагностических инструментов для iPhone с rootless-джейлбрейком
 на iOS 14–17. В нём есть системный дашборд, диспетчер процессов, просмотр
 crash-логов, информация о твиках, модуль Control Center и консольная команда.
@@ -126,6 +128,26 @@ src/scripts/validate_project.sh
 ```sh
 src/scripts/process_device_atlases.sh
 ```
+
+### Сборка через GitHub Actions
+
+Если не хочется устанавливать Theos, Swift и iOS SDK на свой компьютер,
+откройте
+[Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+и нажмите **Run workflow**. Сборка также запускается автоматически при
+изменении исходников в `main` и в pull request.
+
+В готовом артефакте находятся:
+
+- rootless-пакет для архитектуры `iphoneos-arm64`;
+- его контрольная сумма SHA-256;
+- метаданные Debian-пакета и полный список файлов;
+- `BUILD_INFO.md` с версией, коммитом, версиями Xcode и SDK, временем сборки и
+  списком компонентов.
+
+Инструменты сборки сохраняются в кэше между запусками. Артефакты доступны 30
+дней. Такие тестовые сборки не публикуются в GitHub Releases и репозитории
+Sileo.
 
 ## Доступ к системе и приватность
 

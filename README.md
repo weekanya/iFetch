@@ -8,6 +8,8 @@
 
 # iFetch
 
+[![Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+
 iFetch is a diagnostics toolkit for iPhones running a rootless jailbreak on
 iOS 14–17. It combines a native system dashboard, process explorer, crash-log
 viewer, tweak inspection, a Control Center module, and a command-line client.
@@ -128,6 +130,24 @@ Regenerate the cropped device images with ImageMagick 7:
 ```sh
 src/scripts/process_device_atlases.sh
 ```
+
+### GitHub Actions build
+
+If you do not want to install Theos, Swift, and an iOS SDK locally, open
+[Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+and select **Run workflow**. A build also starts automatically when relevant
+source files are pushed to `main` or changed in a pull request.
+
+The workflow creates a downloadable artifact containing:
+
+- the rootless `iphoneos-arm64` package;
+- its SHA-256 checksum;
+- Debian package metadata and a complete file list;
+- `BUILD_INFO.md` with the version, commit, Xcode and SDK versions, build time,
+  and included components.
+
+Build tools are cached between runs. Artifacts are kept for 30 days. These
+development builds are not added to GitHub Releases or the Sileo repository.
 
 ## System access and privacy
 
