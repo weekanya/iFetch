@@ -55,17 +55,15 @@ ifetch --lang ru
 
 ## Сборка
 
-Локальная сборка:
+Для локальной сборки нужны Theos, Swift 5.8 и iOS SDK 16.5 или новее:
 
 ```sh
 make -C src clean package FINALPACKAGE=1
 ```
 
-Также можно запустить
-[Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
-без локальной установки Theos. Workflow создаст rootless-пакет `.deb`,
-контрольную сумму и информацию о сборке. Инструменты сохраняются в кэше,
-артефакты доступны 30 дней. Релиз при этом не создаётся.
+Или запустите
+[Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml),
+чтобы сразу собрать проект на GitHub.
 
 ## Приватность
 

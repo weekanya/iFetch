@@ -55,17 +55,15 @@ ifetch --lang ru
 
 ## Build
 
-To build locally:
+Local builds require Theos, Swift 5.8, and the iOS 16.5 SDK or newer:
 
 ```sh
 make -C src clean package FINALPACKAGE=1
 ```
 
-You can also run
+Alternatively, use
 [Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
-without installing Theos locally. It produces a rootless `.deb`, checksum, and
-build information. Tools are cached and artifacts are kept for 30 days. The
-package is not published as a release.
+to build the project directly on GitHub.
 
 ## Privacy
 
