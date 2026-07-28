@@ -37,7 +37,6 @@ IFetchModule_FILES = \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m
 IFetchModule_FRAMEWORKS = UIKit Foundation SystemConfiguration NetworkExtension
-IFetchModule_PRIVATE_FRAMEWORKS = ControlCenterUIKit
 IFetchModule_INSTALL_PATH = /Library/ControlCenter/Bundles
 IFetchModule_CFLAGS = -fobjc-arc
 IFetchModule_BUNDLE_EXTENSION = bundle
