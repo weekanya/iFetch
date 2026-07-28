@@ -3,7 +3,6 @@ THEOS_PACKAGE_DIR = ../packages
 TARGET = iphone:clang:latest:14.0
 ARCHS = arm64
 INSTALL_TARGET_PROCESSES = SpringBoard
-# В Linux-окружении используется GNU strip, который не понимает Mach-O.
 STRIP = 0
 
 include $(THEOS)/makefiles/common.mk
