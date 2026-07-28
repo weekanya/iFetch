@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.1.0</string>
+    <string>3.1.1</string>
     <key>CFBundleVersion</key>
-    <string>310</string>
+    <string>311</string>
     <key>MinimumOSVersion</key>
     <string>14.0</string>
     <key>UIDeviceFamily</key>

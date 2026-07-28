@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 3.1.0"
+          "title": "Version 3.1.1"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Added native WidgetKit widgets in three sizes\n- Added confirmed process termination from the process inspector\n- Made Recent Crashes interactive in Jailbreak Health\n- Fixed stale 24-hour crash counts and added automatic crash-log refresh\n- Redesigned the Control Center module as an informative 2×2 dashboard"
+          "markdown": "- Changed the Debian package category to Tweaks for Havoc compatibility\n- Updated package, application, widget, and Control Center version metadata\n- No functional changes from iFetch 3.1.0"
         }
       ],
       "class": "DepictionStackView"
