@@ -3,6 +3,7 @@
 #import <arpa/inet.h>
 #import <dlfcn.h>
 #import <netinet/in.h>
+#import <signal.h>
 #import <sys/socket.h>
 #import <sys/stat.h>
 #import <unistd.h>
@@ -132,6 +133,7 @@ struct ifh_socket_fdinfo {
 typedef int (*IFHProcPidInfoFn)(int, int, uint64_t, void *, int);
 typedef int (*IFHProcPidFDInfoFn)(int, int, int, void *, int);
 typedef int (*IFHProcNameFn)(int, void *, uint32_t);
+typedef int (*IFHProcListPidsFn)(uint32_t, uint32_t, void *, int);
 
 static NSString *IFHStateDirectory(void) {
     return @"/var/jb/var/lib/ifetch";
@@ -351,6 +353,39 @@ static NSArray *IFHConnections(NSArray<NSNumber *> *pids) {
     return connections;
 }
 
+static NSDictionary *IFHRefreshWidgets(void) {
+    IFHProcListPidsFn listPids = (IFHProcListPidsFn)dlsym(RTLD_DEFAULT, "proc_listpids");
+    IFHProcNameFn processName = (IFHProcNameFn)dlsym(RTLD_DEFAULT, "proc_name");
+    if (listPids == NULL || processName == NULL) {
+        return @{@"success": @NO, @"error": @"Process API is unavailable"};
+    }
+    const int capacity = 4096;
+    pid_t *pids = calloc((size_t)capacity, sizeof(pid_t));
+    if (pids == NULL) {
+        return @{@"success": @NO, @"error": @"Could not allocate process list"};
+    }
+    NSSet<NSString *> *targets = [NSSet setWithObjects:@"IFetchWidgets", @"chronod", nil];
+    int bytes = listPids(1, 0, pids, capacity * (int)sizeof(pid_t));
+    int count = MAX(0, bytes / (int)sizeof(pid_t));
+    NSUInteger stopped = 0;
+    for (int index = 0; index < count; index++) {
+        pid_t pid = pids[index];
+        if (pid <= 1) {
+            continue;
+        }
+        char buffer[1024] = {0};
+        if (processName(pid, buffer, sizeof(buffer)) <= 0) {
+            continue;
+        }
+        NSString *name = [NSString stringWithUTF8String:buffer] ?: @"";
+        if ([targets containsObject:name] && (kill(pid, SIGTERM) == 0 || errno == ESRCH)) {
+            stopped++;
+        }
+    }
+    free(pids);
+    return @{@"success": @YES, @"stopped": @(stopped)};
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         if (setuid(0) != 0 || geteuid() != 0) {
@@ -387,6 +422,10 @@ int main(int argc, char *argv[]) {
                 }
             }
             IFHPrintJSON(@{@"success": @YES, @"connections": IFHConnections(pids)});
+            return 0;
+        }
+        if ([command isEqualToString:@"widget-refresh"]) {
+            IFHPrintJSON(IFHRefreshWidgets());
             return 0;
         }
         IFHPrintJSON(@{@"success": @NO, @"error": @"Unsupported command"});

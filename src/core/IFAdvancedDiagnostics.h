@@ -67,6 +67,7 @@ typedef NS_ENUM(NSInteger, IFIntegritySeverity) {
 + (NSUInteger)diagnosticModeDisabledCount;
 + (BOOL)enableDiagnosticModeWithError:(NSError **)error;
 + (BOOL)restoreDiagnosticModeWithError:(NSError **)error;
++ (BOOL)refreshWidgetsWithError:(NSError **)error;
 
 + (BOOL)alertsEnabled;
 + (void)refreshAlertsAuthorizationWithCompletion:(void (^)(BOOL granted))completion;

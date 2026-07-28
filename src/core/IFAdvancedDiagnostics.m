@@ -833,6 +833,11 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
     return [result[@"success"] boolValue];
 }
 
++ (BOOL)refreshWidgetsWithError:(NSError **)error {
+    NSDictionary *result = IFARunHelper(@[@"widget-refresh"], error);
+    return [result[@"success"] boolValue];
+}
+
 + (BOOL)alertsEnabled {
     return [NSUserDefaults.standardUserDefaults boolForKey:@"IFetchAlertsEnabled"];
 }

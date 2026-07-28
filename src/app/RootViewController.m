@@ -219,7 +219,7 @@ static NSString *IFTSnapshotDate(NSString *value) {
     }
     switch (section) {
         case 0: return 2;
-        case 1: return 2;
+        case 1: return 3;
         case 2: return 2;
         case 3: return 1;
         default: return 0;
@@ -502,7 +502,12 @@ static NSString *IFTSnapshotDate(NSString *value) {
         return cell;
     }
     if (indexPath.section == 1) {
-        return [self actionCellWithTitle:indexPath.row == 0 ? @"Respring" : IFT(@"Refresh icon cache", @"Обновить кэш иконок")
+        NSArray *titles = @[
+            @"Respring",
+            IFT(@"Refresh widgets", @"Обновить виджеты"),
+            IFT(@"Refresh icon cache", @"Обновить кэш иконок")
+        ];
+        return [self actionCellWithTitle:titles[(NSUInteger)indexPath.row]
                                   color:[UIColor systemBlueColor]];
     }
     if (indexPath.section == 2) {
@@ -545,6 +550,8 @@ static NSString *IFTSnapshotDate(NSString *value) {
                              command:@"sbreload"
                            arguments:@[]];
     } else if (indexPath.section == 1 && indexPath.row == 1) {
+        [self refreshWidgets];
+    } else if (indexPath.section == 1 && indexPath.row == 2) {
         [self runCommand:@"uicache"
                arguments:@[@"-a", @"-r"]
           successMessage:IFT(@"The icon cache has been refreshed", @"Кэш иконок обновлён")];
@@ -566,6 +573,20 @@ static NSString *IFTSnapshotDate(NSString *value) {
 }
 
 #pragma mark - Actions
+
+- (void)refreshWidgets {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSError *error = nil;
+        BOOL success = [IFAdvancedDiagnostics refreshWidgetsWithError:&error];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self showMessage:success
+                ? IFT(@"Widget cache was reset. WidgetKit will rebuild the widgets shortly.",
+                      @"Кэш виджетов сброшен. WidgetKit вскоре пересоздаст виджеты.")
+                : error.localizedDescription ?: IFT(@"Could not refresh widgets",
+                                                     @"Не удалось обновить виджеты")];
+        });
+    });
+}
 
 - (void)showLanguagePicker {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:IFT(@"Language", @"Язык")
