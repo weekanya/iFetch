@@ -432,7 +432,8 @@ static NSString *IFT(NSString *english, NSString *russian) {
                              @"globe", @"antenna.radiowaves.left.and.right", @"lock.shield.fill",
                              @"server.rack"];
         NSArray *colors = @[UIColor.systemBlueColor, UIColor.systemTealColor, UIColor.systemIndigoColor,
-                            UIColor.systemCyanColor, UIColor.systemOrangeColor, UIColor.systemGreenColor,
+                            [UIColor colorWithRed:0.20 green:0.78 blue:0.92 alpha:1],
+                            UIColor.systemOrangeColor, UIColor.systemGreenColor,
                             UIColor.systemPurpleColor];
         return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
                     color:colors[(NSUInteger)indexPath.row]];
