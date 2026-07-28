@@ -5,6 +5,9 @@
 @interface IFAdvancedMenuViewController : UITableViewController
 @end
 
+@interface IFIntegrityViewController : UITableViewController
+@end
+
 @interface IFProcessConnectionsViewController : UITableViewController
 - (instancetype)initWithProcess:(IFProcessSample *)process;
 @end

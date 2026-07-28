@@ -55,6 +55,14 @@ if [[ -f "${package}" ]]; then
         echo "CLI binary is missing from package" >&2
         exit 1
     fi
+    if ! grep -q 'usr/libexec/ifetchhelper' <<<"${listing}"; then
+        echo "Privileged helper is missing from package" >&2
+        exit 1
+    fi
+    if ! grep -q -- '-rwsr-xr-x.*usr/libexec/ifetchhelper' <<<"${listing}"; then
+        echo "Privileged helper does not have setuid permissions" >&2
+        exit 1
+    fi
     if ! grep -q 'Library/ControlCenter/Bundles/IFetchModule.bundle/IFetchModule' <<<"${listing}"; then
         echo "Control Center module is missing from package" >&2
         exit 1

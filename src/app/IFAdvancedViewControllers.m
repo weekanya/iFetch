@@ -1,7 +1,9 @@
 #import "IFAdvancedViewControllers.h"
 
 #import "../core/IFAdvancedDiagnostics.h"
+#import <objc/message.h>
 #import <spawn.h>
+#import <sys/stat.h>
 #import <sys/wait.h>
 
 extern char **environ;
@@ -37,6 +39,34 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     return index == NSNotFound ? fallback : (NSInteger)index;
 }
 
+static NSString *IFAVWidgetPreferencesPath(void) {
+    return @"/var/mobile/Library/Preferences/com.wee1ka.ifetch.widget.plist";
+}
+
+static NSDictionary *IFAVWidgetPreferences(void) {
+    NSDictionary *preferences = [NSDictionary dictionaryWithContentsOfFile:IFAVWidgetPreferencesPath()];
+    return [preferences isKindOfClass:[NSDictionary class]] ? preferences : @{};
+}
+
+static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
+    NSMutableDictionary *preferences = [IFAVWidgetPreferences() mutableCopy];
+    if (value != nil) {
+        preferences[key] = value;
+    } else {
+        [preferences removeObjectForKey:key];
+    }
+    BOOL saved = [preferences writeToFile:IFAVWidgetPreferencesPath() atomically:YES];
+    if (saved) {
+        chmod(IFAVWidgetPreferencesPath().fileSystemRepresentation, 0644);
+        Class bridge = NSClassFromString(@"IFWidgetBridge");
+        SEL selector = NSSelectorFromString(@"reload");
+        if (bridge != Nil && [bridge respondsToSelector:selector]) {
+            ((void (*)(id, SEL))objc_msgSend)(bridge, selector);
+        }
+    }
+    return saved;
+}
+
 @interface IFProcessConnectionsViewController ()
 @property (nonatomic, strong) IFProcessSample *process;
 @property (nonatomic, copy) NSArray<IFProcessConnection *> *connections;
@@ -56,11 +86,11 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.refreshControl = [[UIRefreshControl alloc] init];
-    [self.refreshControl addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
-    [self reload];
+    [self.refreshControl addTarget:self action:@selector(reload:) forControlEvents:UIControlEventValueChanged];
+    [self reload:nil];
 }
 
-- (void)reload {
+- (void)reload:(__unused id)sender {
     self.connections = [IFAdvancedDiagnostics connectionsForProcess:self.process];
     UILabel *empty = [[UILabel alloc] init];
     empty.text = IFAV(@"No visible network connections", @"Видимые сетевые соединения не найдены");
@@ -76,12 +106,20 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     return self.connections.count;
 }
 
+- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(__unused NSInteger)section {
+    return IFAV(@"Includes the selected app and active processes from its .app bundle, including Network Extensions.",
+                @"Показывает выбранное приложение и активные процессы из его .app, включая Network Extension.");
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     IFProcessConnection *connection = self.connections[indexPath.row];
     NSString *detail = [NSString stringWithFormat:@"%@ → %@%@",
                         connection.localEndpoint, connection.remoteEndpoint,
                         connection.state.length ? [@" · " stringByAppendingString:connection.state] : @""];
-    UITableViewCell *cell = IFAVCell(tableView, @"IFConnection", connection.protocolName, detail);
+    NSString *title = connection.processName.length
+        ? [NSString stringWithFormat:@"%@ · %@", connection.processName, connection.protocolName]
+        : connection.protocolName;
+    UITableViewCell *cell = IFAVCell(tableView, @"IFConnection", title, detail);
     cell.imageView.image = [UIImage systemImageNamed:@"network"];
     return cell;
 }
@@ -103,11 +141,11 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     search.obscuresBackgroundDuringPresentation = NO;
     self.navigationItem.searchController = search;
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload)];
-    [self reload];
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload:)];
+    [self reload:nil];
 }
 
-- (void)reload {
+- (void)reload:(__unused id)sender {
     self.groups = [IFAdvancedDiagnostics injectionMap];
     self.visibleGroups = self.groups;
     [self.tableView reloadData];
@@ -158,11 +196,11 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     search.obscuresBackgroundDuringPresentation = NO;
     self.navigationItem.searchController = search;
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload)];
-    [self reload];
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload:)];
+    [self reload:nil];
 }
 
-- (void)reload {
+- (void)reload:(__unused id)sender {
     self.records = [IFAdvancedDiagnostics launchDaemons];
     self.visibleRecords = self.records;
     [self.tableView reloadData];
@@ -197,7 +235,7 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 
 @end
 
-@interface IFIntegrityViewController : UITableViewController
+@interface IFIntegrityViewController ()
 @property (nonatomic, copy) NSArray<IFIntegrityIssue *> *issues;
 @end
 
@@ -207,11 +245,11 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     [super viewDidLoad];
     self.title = IFAV(@"Jailbreak integrity", @"Целостность jailbreak");
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload)];
-    [self reload];
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload:)];
+    [self reload:nil];
 }
 
-- (void)reload {
+- (void)reload:(__unused id)sender {
     self.navigationItem.rightBarButtonItem.enabled = NO;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSArray *issues = [IFAdvancedDiagnostics integrityIssues];
@@ -241,6 +279,7 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 
 @interface IFSnapshotsViewController : UITableViewController
 @property (nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *snapshots;
+@property (nonatomic, strong) UIBarButtonItem *compareButton;
 @end
 
 @implementation IFSnapshotsViewController
@@ -248,17 +287,18 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = IFAV(@"System snapshots", @"Снимки системы");
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(addSnapshot)];
+    UIBarButtonItem *addButton = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(addSnapshot:)];
+    self.compareButton = [[UIBarButtonItem alloc] initWithTitle:IFAV(@"Compare", @"Сравнить")
+                                                         style:UIBarButtonItemStylePlain
+                                                        target:self action:@selector(compare:)];
+    self.navigationItem.rightBarButtonItems = @[addButton, self.compareButton];
     [self reload];
 }
 
 - (void)reload {
     self.snapshots = [IFAdvancedDiagnostics systemSnapshots];
-    self.navigationItem.leftBarButtonItem = self.snapshots.count >= 2
-        ? [[UIBarButtonItem alloc] initWithTitle:IFAV(@"Compare", @"Сравнить")
-                                          style:UIBarButtonItemStylePlain target:self action:@selector(compare)]
-        : nil;
+    self.compareButton.enabled = self.snapshots.count >= 2;
     UILabel *empty = [[UILabel alloc] init];
     empty.text = IFAV(@"Create two snapshots to compare system changes.",
                       @"Создайте два снимка, чтобы сравнить изменения системы.");
@@ -269,7 +309,7 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     [self.tableView reloadData];
 }
 
-- (void)addSnapshot {
+- (void)addSnapshot:(__unused id)sender {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:IFAV(@"New snapshot", @"Новый снимок")
                                                                    message:IFAV(@"A list of processes, packages, tweaks and daemons will be saved.",
                                                                                @"Будут сохранены процессы, пакеты, твики и демоны.")
@@ -297,7 +337,7 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)compare {
+- (void)compare:(__unused id)sender {
     if (self.snapshots.count < 2) {
         return;
     }
@@ -340,6 +380,20 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
     return self.snapshots.count;
+}
+
+- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
+ forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (editingStyle != UITableViewCellEditingStyleDelete || indexPath.row >= (NSInteger)self.snapshots.count) {
+        return;
+    }
+    NSError *error = nil;
+    if (![IFAdvancedDiagnostics deleteSystemSnapshot:self.snapshots[indexPath.row] error:&error]) {
+        IFAVShowMessage(self, @"iFetch", error.localizedDescription ?: IFAV(@"Could not delete snapshot",
+                                                                            @"Не удалось удалить снимок"));
+        return;
+    }
+    [self reload];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -502,7 +556,6 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     if (indexPath.section == 0) {
         UITableViewCell *cell = IFAVCell(tableView, @"IFAlerts", IFAV(@"Health alerts", @"Уведомления о состоянии"), @"");
         UISwitch *toggle = [[UISwitch alloc] init];
@@ -511,29 +564,30 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
         cell.accessoryView = toggle;
         return cell;
     }
+    NSDictionary *widgetPreferences = IFAVWidgetPreferences();
     if (indexPath.row == 0) {
         NSArray *values = @[@"cyan", @"green", @"orange", @"purple"];
-        NSString *value = [defaults stringForKey:@"IFetchWidgetAccent"] ?: @"cyan";
+        NSString *value = widgetPreferences[@"accent"] ?: @"cyan";
         return [self segmentedCell:tableView title:IFAV(@"Accent", @"Цвет")
                              items:@[@"Cyan", @"Green", @"Orange", @"Purple"]
                           selected:IFAVSelectedIndex(values, value, 0) tag:100];
     }
     if (indexPath.row == 1) {
         NSArray *values = @[@"battery", @"memory", @"storage"];
-        NSString *value = [defaults stringForKey:@"IFetchWidgetPrimaryMetric"] ?: @"battery";
+        NSString *value = widgetPreferences[@"primaryMetric"] ?: @"battery";
         return [self segmentedCell:tableView title:IFAV(@"Main metric", @"Главный показатель")
                              items:@[IFAV(@"Battery", @"Батарея"), @"RAM", IFAV(@"Storage", @"Диск")]
                           selected:IFAVSelectedIndex(values, value, 0) tag:101];
     }
     if (indexPath.row == 2) {
-        NSInteger minutes = [defaults integerForKey:@"IFetchWidgetRefreshMinutes"];
+        NSInteger minutes = [widgetPreferences[@"refreshMinutes"] integerValue];
         NSArray *values = @[@5, @15, @30];
         NSInteger selected = IFAVSelectedIndex(values, @(minutes > 0 ? minutes : 15), 1);
         return [self segmentedCell:tableView title:IFAV(@"Refresh", @"Обновление")
                              items:@[@"5m", @"15m", @"30m"] selected:selected tag:102];
     }
     NSArray *values = @[@"overview", @"diagnostics", @"advanced"];
-    NSString *value = [defaults stringForKey:@"IFetchWidgetDeepLink"] ?: @"diagnostics";
+    NSString *value = widgetPreferences[@"deepLink"] ?: @"diagnostics";
     return [self segmentedCell:tableView title:IFAV(@"Tap opens", @"Открывать")
                          items:@[IFAV(@"Overview", @"Сводка"), IFAV(@"Diagnostics", @"Диагностика"),
                                  IFAV(@"Advanced", @"4.0")]
@@ -556,21 +610,24 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 }
 
 - (void)preferenceChanged:(UISegmentedControl *)control {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    BOOL saved = NO;
     if (control.tag == 100) {
-        [defaults setObject:@[@"cyan", @"green", @"orange", @"purple"][(NSUInteger)control.selectedSegmentIndex]
-                    forKey:@"IFetchWidgetAccent"];
+        saved = IFAVSaveWidgetPreference(@"accent",
+            @[@"cyan", @"green", @"orange", @"purple"][(NSUInteger)control.selectedSegmentIndex]);
     } else if (control.tag == 101) {
-        [defaults setObject:@[@"battery", @"memory", @"storage"][(NSUInteger)control.selectedSegmentIndex]
-                    forKey:@"IFetchWidgetPrimaryMetric"];
+        saved = IFAVSaveWidgetPreference(@"primaryMetric",
+            @[@"battery", @"memory", @"storage"][(NSUInteger)control.selectedSegmentIndex]);
     } else if (control.tag == 102) {
-        [defaults setInteger:[@[@5, @15, @30][(NSUInteger)control.selectedSegmentIndex] integerValue]
-                      forKey:@"IFetchWidgetRefreshMinutes"];
+        saved = IFAVSaveWidgetPreference(@"refreshMinutes",
+            @[@5, @15, @30][(NSUInteger)control.selectedSegmentIndex]);
     } else if (control.tag == 103) {
-        [defaults setObject:@[@"overview", @"diagnostics", @"advanced"][(NSUInteger)control.selectedSegmentIndex]
-                    forKey:@"IFetchWidgetDeepLink"];
+        saved = IFAVSaveWidgetPreference(@"deepLink",
+            @[@"overview", @"diagnostics", @"advanced"][(NSUInteger)control.selectedSegmentIndex]);
     }
-    [defaults synchronize];
+    if (!saved) {
+        IFAVShowMessage(self, @"iFetch", IFAV(@"Could not save widget settings.",
+                                              @"Не удалось сохранить настройки виджета."));
+    }
 }
 
 @end
@@ -587,7 +644,7 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
-    return 6;
+    return 5;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -595,7 +652,6 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
         IFAV(@"System snapshots", @"Снимки системы"),
         IFAV(@"Injection map", @"Карта инъекций"),
         @"LaunchDaemons",
-        IFAV(@"Jailbreak integrity", @"Целостность jailbreak"),
         IFAV(@"Diagnostic mode", @"Режим диагностики"),
         IFAV(@"Alerts and widgets", @"Уведомления и виджеты")
     ];
@@ -603,12 +659,11 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
         IFAV(@"Compare processes, packages, tweaks and daemons", @"Сравнение процессов, пакетов, твиков и демонов"),
         IFAV(@"Tweak filters grouped by target process", @"Фильтры твиков по целевым процессам"),
         IFAV(@"Bootstrap daemon state and executable paths", @"Состояние демонов и пути запуска"),
-        IFAV(@"Bootstrap files, packages, filters and symlinks", @"Файлы bootstrap, пакеты, фильтры и ссылки"),
         IFAV(@"Temporarily disable and restore third-party tweaks", @"Временное отключение и возврат сторонних твиков"),
         IFAV(@"Health warnings and widget appearance", @"Предупреждения и оформление виджетов")
     ];
     NSArray *symbols = @[@"square.stack.3d.up", @"point.3.connected.trianglepath.dotted",
-                         @"gearshape.2", @"checkmark.shield", @"stethoscope", @"slider.horizontal.3"];
+                         @"gearshape.2", @"stethoscope", @"slider.horizontal.3"];
     UITableViewCell *cell = IFAVCell(tableView, @"IFAdvancedMenu", titles[indexPath.row], details[indexPath.row]);
     cell.imageView.image = [UIImage systemImageNamed:symbols[indexPath.row]];
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -622,7 +677,6 @@ static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback
         [IFSnapshotsViewController class],
         [IFInjectionMapViewController class],
         [IFLaunchDaemonsViewController class],
-        [IFIntegrityViewController class],
         [IFDiagnosticModeViewController class],
         [IFPreferencesViewController class]
     ];

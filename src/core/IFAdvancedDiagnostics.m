@@ -4,7 +4,13 @@
 #import <arpa/inet.h>
 #import <dlfcn.h>
 #import <netinet/in.h>
+#import <spawn.h>
+#import <string.h>
 #import <sys/socket.h>
+#import <sys/wait.h>
+#import <unistd.h>
+
+extern char **environ;
 
 static NSString *IFA(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];
@@ -175,8 +181,11 @@ static NSString *IFAAddress(const struct if_adv_in_sockinfo *info, BOOL local) {
 static NSString *IFAEndpoint(const struct if_adv_in_sockinfo *info, BOOL local) {
     NSString *address = IFAAddress(info, local);
     uint16_t port = ntohs((uint16_t)(local ? info->localPort : info->foreignPort));
-    if (address.length == 0) {
+    if ([address isEqualToString:@"0.0.0.0"] || [address isEqualToString:@"::"] || address.length == 0) {
         address = local ? @"*" : @"—";
+    }
+    if (!local && port == 0) {
+        return @"—";
     }
     if ([address containsString:@":"]) {
         return [NSString stringWithFormat:@"[%@]:%u", address, port];
@@ -239,7 +248,7 @@ static NSString *IFASnapshotDirectory(void) {
 }
 
 static NSString *IFADiagnosticStatePath(void) {
-    return @"/var/mobile/Library/Preferences/com.wee1ka.ifetch.diagnostic-mode.plist";
+    return @"/var/jb/var/lib/ifetch/diagnostic-mode.plist";
 }
 
 static NSArray<NSString *> *IFATweakDirectories(void) {
@@ -247,17 +256,6 @@ static NSArray<NSString *> *IFATweakDirectories(void) {
         @"/var/jb/Library/MobileSubstrate/DynamicLibraries",
         @"/var/jb/usr/lib/TweakInject"
     ];
-}
-
-static BOOL IFAIsCriticalTweak(NSString *name) {
-    NSString *lower = name.lowercaseString;
-    NSArray *protectedNames = @[@"ellekit", @"substrate", @"libhooker", @"substitute", @"safe", @"ifetch"];
-    for (NSString *candidate in protectedNames) {
-        if ([lower containsString:candidate]) {
-            return YES;
-        }
-    }
-    return NO;
 }
 
 static void IFAAddIssue(NSMutableArray<IFIntegrityIssue *> *issues,
@@ -269,6 +267,78 @@ static void IFAAddIssue(NSMutableArray<IFIntegrityIssue *> *issues,
     issue.detail = detail;
     issue.severity = severity;
     [issues addObject:issue];
+}
+
+static NSDictionary *IFARunHelper(NSArray<NSString *> *arguments, NSError **error) {
+    NSString *path = @"/var/jb/usr/libexec/ifetchhelper";
+    if (![[NSFileManager defaultManager] isExecutableFileAtPath:path]) {
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:@"com.wee1ka.ifetch.helper" code:2
+                                    userInfo:@{NSLocalizedDescriptionKey:
+                                        IFA(@"The privileged helper is missing. Reinstall the package through a package manager.",
+                                            @"Привилегированный helper отсутствует. Переустановите пакет через пакетный менеджер.")}];
+        }
+        return nil;
+    }
+    int outputPipe[2] = {-1, -1};
+    if (pipe(outputPipe) != 0) {
+        return nil;
+    }
+    NSMutableArray<NSString *> *allArguments = [NSMutableArray arrayWithObject:path.lastPathComponent];
+    [allArguments addObjectsFromArray:arguments];
+    char **argv = calloc(allArguments.count + 1, sizeof(char *));
+    if (argv == NULL) {
+        close(outputPipe[0]);
+        close(outputPipe[1]);
+        return nil;
+    }
+    for (NSUInteger index = 0; index < allArguments.count; index++) {
+        argv[index] = (char *)allArguments[index].UTF8String;
+    }
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_adddup2(&actions, outputPipe[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&actions, outputPipe[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&actions, outputPipe[0]);
+    pid_t pid = 0;
+    int spawnResult = posix_spawn(&pid, path.fileSystemRepresentation, &actions, NULL, argv, environ);
+    posix_spawn_file_actions_destroy(&actions);
+    free(argv);
+    close(outputPipe[1]);
+    if (spawnResult != 0) {
+        close(outputPipe[0]);
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:@"com.wee1ka.ifetch.helper" code:spawnResult
+                                    userInfo:@{NSLocalizedDescriptionKey:
+                                        [NSString stringWithFormat:IFA(@"Could not start helper: %s",
+                                                                       @"Не удалось запустить helper: %s"),
+                                         strerror(spawnResult)]}];
+        }
+        return nil;
+    }
+    NSMutableData *output = [NSMutableData data];
+    uint8_t buffer[4096];
+    ssize_t count = 0;
+    while ((count = read(outputPipe[0], buffer, sizeof(buffer))) > 0) {
+        [output appendBytes:buffer length:(NSUInteger)count];
+    }
+    close(outputPipe[0]);
+    int status = 0;
+    waitpid(pid, &status, 0);
+    NSDictionary *result = output.length > 0
+        ? [NSJSONSerialization JSONObjectWithData:output options:0 error:nil] : nil;
+    if (![result isKindOfClass:[NSDictionary class]]) {
+        result = nil;
+    }
+    if ((result == nil || ![result[@"success"] boolValue]) && error != NULL) {
+        NSString *message = [result[@"error"] isKindOfClass:[NSString class]] ? result[@"error"]
+            : [[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding];
+        *error = [NSError errorWithDomain:@"com.wee1ka.ifetch.helper"
+                                     code:WIFEXITED(status) ? WEXITSTATUS(status) : 1
+                                 userInfo:@{NSLocalizedDescriptionKey:
+                                     message.length ? message : IFA(@"Helper operation failed", @"Ошибка helper")}];
+    }
+    return result;
 }
 
 static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *body) {
@@ -297,6 +367,39 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
 + (NSArray<IFProcessConnection *> *)connectionsForProcess:(IFProcessSample *)process {
     if (process == nil || process.pid <= 0) {
         return @[];
+    }
+    NSMutableOrderedSet<NSNumber *> *pids = [NSMutableOrderedSet orderedSetWithObject:@(process.pid)];
+    NSString *applicationPrefix = @"";
+    NSRange appRange = [process.executablePath rangeOfString:@".app/" options:NSCaseInsensitiveSearch];
+    if (appRange.location != NSNotFound) {
+        applicationPrefix = [process.executablePath substringToIndex:appRange.location + 4];
+        IFProcessMonitor *monitor = [[IFProcessMonitor alloc] init];
+        for (IFProcessSample *candidate in monitor.allProcesses) {
+            if (candidate.pid > 0 && [candidate.executablePath hasPrefix:applicationPrefix]) {
+                [pids addObject:@(candidate.pid)];
+            }
+        }
+    }
+    NSMutableArray<NSString *> *helperArguments = [NSMutableArray arrayWithObject:@"connections"];
+    for (NSNumber *pid in pids) {
+        [helperArguments addObject:pid.stringValue];
+    }
+    NSDictionary *helperResult = IFARunHelper(helperArguments, nil);
+    NSArray<NSDictionary *> *helperConnections =
+        [helperResult[@"connections"] isKindOfClass:[NSArray class]] ? helperResult[@"connections"] : nil;
+    if (helperConnections != nil) {
+        NSMutableArray *converted = [NSMutableArray array];
+        for (NSDictionary *entry in helperConnections) {
+            IFProcessConnection *connection = [[IFProcessConnection alloc] init];
+            connection.pid = [entry[@"pid"] intValue];
+            connection.processName = entry[@"process"] ?: @"";
+            connection.protocolName = entry[@"protocol"] ?: @"";
+            connection.localEndpoint = entry[@"local"] ?: @"";
+            connection.remoteEndpoint = entry[@"remote"] ?: @"";
+            connection.state = entry[@"state"] ?: @"";
+            [converted addObject:connection];
+        }
+        return converted;
     }
     IFAProcPidInfoFn procPidInfo = (IFAProcPidInfoFn)dlsym(RTLD_DEFAULT, "proc_pidinfo");
     IFAProcPidFDInfoFn procPidFDInfo = (IFAProcPidFDInfoFn)dlsym(RTLD_DEFAULT, "proc_pidfdinfo");
@@ -570,7 +673,9 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
         NSData *data = [NSData dataWithContentsOfFile:[IFASnapshotDirectory() stringByAppendingPathComponent:file]];
         NSDictionary *snapshot = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
         if ([snapshot isKindOfClass:[NSDictionary class]]) {
-            [snapshots addObject:snapshot];
+            NSMutableDictionary *record = [snapshot mutableCopy];
+            record[@"_path"] = [IFASnapshotDirectory() stringByAppendingPathComponent:file];
+            [snapshots addObject:record];
         }
     }
     return [snapshots sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *left, NSDictionary *right) {
@@ -624,6 +729,20 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
                      options:NSDataWritingAtomic error:error] ? snapshot : nil;
 }
 
++ (BOOL)deleteSystemSnapshot:(NSDictionary<NSString *, id> *)snapshot error:(NSError **)error {
+    NSString *path = [snapshot[@"_path"] isKindOfClass:[NSString class]] ? snapshot[@"_path"] : @"";
+    NSString *directory = [IFASnapshotDirectory() stringByAppendingString:@"/"];
+    if (![path hasPrefix:directory] || ![path.pathExtension.lowercaseString isEqualToString:@"json"]) {
+        if (error != NULL) {
+            *error = [NSError errorWithDomain:@"com.wee1ka.ifetch" code:3
+                                    userInfo:@{NSLocalizedDescriptionKey: IFA(@"Invalid snapshot path",
+                                                                            @"Некорректный путь снимка")}];
+        }
+        return NO;
+    }
+    return [[NSFileManager defaultManager] removeItemAtPath:path error:error];
+}
+
 + (NSDictionary<NSString *, NSArray<NSString *> *> *)compareSnapshot:(NSDictionary<NSString *, id> *)older
                                                                   with:(NSDictionary<NSString *, id> *)newer {
     NSMutableDictionary *result = [NSMutableDictionary dictionary];
@@ -650,72 +769,13 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
 }
 
 + (BOOL)enableDiagnosticModeWithError:(NSError **)error {
-    if ([self diagnosticModeEnabled]) {
-        return YES;
-    }
-    NSFileManager *manager = NSFileManager.defaultManager;
-    NSMutableArray *moved = [NSMutableArray array];
-    for (NSString *directory in IFATweakDirectories()) {
-        for (NSString *file in [manager contentsOfDirectoryAtPath:directory error:nil]) {
-            if (![file.pathExtension.lowercaseString isEqualToString:@"dylib"] || IFAIsCriticalTweak(file)) {
-                continue;
-            }
-            NSString *source = [directory stringByAppendingPathComponent:file];
-            NSString *destination = [[source stringByDeletingPathExtension] stringByAppendingPathExtension:@"disabled"];
-            if ([manager fileExistsAtPath:destination]) {
-                continue;
-            }
-            if (![manager moveItemAtPath:source toPath:destination error:error]) {
-                for (NSDictionary *entry in moved.reverseObjectEnumerator) {
-                    [manager moveItemAtPath:entry[@"disabled"] toPath:entry[@"original"] error:nil];
-                }
-                return NO;
-            }
-            [moved addObject:@{@"original": source, @"disabled": destination}];
-        }
-    }
-    if (moved.count == 0) {
-        if (error != NULL) {
-            *error = [NSError errorWithDomain:@"com.wee1ka.ifetch" code:1
-                                    userInfo:@{NSLocalizedDescriptionKey: IFA(@"No active third-party tweaks found",
-                                                                            @"Активные сторонние твики не найдены")}];
-        }
-        return NO;
-    }
-    NSDictionary *state = @{@"createdAt": NSDate.date, @"files": moved};
-    NSData *stateData = [NSPropertyListSerialization dataWithPropertyList:state
-                                                                   format:NSPropertyListBinaryFormat_v1_0
-                                                                  options:0 error:error];
-    if (stateData != nil && [stateData writeToFile:IFADiagnosticStatePath()
-                                           options:NSDataWritingAtomic error:error]) {
-        return YES;
-    }
-    for (NSDictionary *entry in moved.reverseObjectEnumerator) {
-        [manager moveItemAtPath:entry[@"disabled"] toPath:entry[@"original"] error:nil];
-    }
-    return NO;
+    NSDictionary *result = IFARunHelper(@[@"diagnostic-enable"], error);
+    return [result[@"success"] boolValue];
 }
 
 + (BOOL)restoreDiagnosticModeWithError:(NSError **)error {
-    NSDictionary *state = [NSDictionary dictionaryWithContentsOfFile:IFADiagnosticStatePath()];
-    NSArray<NSDictionary *> *files = [state[@"files"] isKindOfClass:[NSArray class]] ? state[@"files"] : @[];
-    NSFileManager *manager = NSFileManager.defaultManager;
-    BOOL success = YES;
-    for (NSDictionary *entry in files) {
-        NSString *original = entry[@"original"];
-        NSString *disabled = entry[@"disabled"];
-        if (original.length == 0 || disabled.length == 0 || ![manager fileExistsAtPath:disabled]) {
-            continue;
-        }
-        if ([manager fileExistsAtPath:original] || ![manager moveItemAtPath:disabled toPath:original error:error]) {
-            success = NO;
-            break;
-        }
-    }
-    if (success) {
-        [manager removeItemAtPath:IFADiagnosticStatePath() error:nil];
-    }
-    return success;
+    NSDictionary *result = IFARunHelper(@[@"diagnostic-restore"], error);
+    return [result[@"success"] boolValue];
 }
 
 + (BOOL)alertsEnabled {
@@ -732,15 +792,24 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
     }
     [[UNUserNotificationCenter currentNotificationCenter]
         requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound
-                      completionHandler:^(BOOL granted, __unused NSError *error) {
-        [NSUserDefaults.standardUserDefaults setBool:granted forKey:@"IFetchAlertsEnabled"];
-        if (granted) {
-            [NSUserDefaults.standardUserDefaults setInteger:[IFetchCore jailbreakInfo].recentCrashCount
-                                                     forKey:@"IFetchObservedCrashCount"];
-        }
-        if (completion != nil) {
-            completion(granted);
-        }
+                      completionHandler:^(__unused BOOL granted, __unused NSError *error) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            [[UNUserNotificationCenter currentNotificationCenter]
+                getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+                BOOL authorized = settings.authorizationStatus == UNAuthorizationStatusAuthorized ||
+                    settings.authorizationStatus == UNAuthorizationStatusProvisional ||
+                    settings.authorizationStatus == UNAuthorizationStatusEphemeral;
+                [NSUserDefaults.standardUserDefaults setBool:authorized forKey:@"IFetchAlertsEnabled"];
+                if (authorized) {
+                    [NSUserDefaults.standardUserDefaults setInteger:[IFetchCore jailbreakInfo].recentCrashCount
+                                                             forKey:@"IFetchObservedCrashCount"];
+                }
+                if (completion != nil) {
+                    completion(authorized);
+                }
+            }];
+        });
     }];
 }
 

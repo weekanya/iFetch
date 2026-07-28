@@ -8,7 +8,7 @@ STRIP = 0
 include $(THEOS)/makefiles/common.mk
 
 APPLICATION_NAME = IFetch
-TOOL_NAME = ifetch
+TOOL_NAME = ifetch ifetchhelper
 BUNDLE_NAME = IFetchModule
 APPEX_NAME = IFetchWidgets
 
@@ -18,10 +18,11 @@ IFetch_FILES = \
 	app/RootViewController.m \
 	app/DiagnosticsViewController.m \
 	app/IFAdvancedViewControllers.m \
+	app/IFWidgetBridge.swift \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m \
 	core/IFAdvancedDiagnostics.m
-IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications
+IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications WidgetKit
 IFetch_RESOURCE_DIRS = resources
 IFetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 IFetch_CFLAGS = -fobjc-arc
@@ -33,6 +34,12 @@ ifetch_FILES = \
 ifetch_FRAMEWORKS = Foundation SystemConfiguration NetworkExtension
 ifetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 ifetch_CFLAGS = -fobjc-arc
+
+ifetchhelper_FILES = helper/main.m
+ifetchhelper_FRAMEWORKS = Foundation
+ifetchhelper_INSTALL_PATH = /usr/libexec
+ifetchhelper_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
+ifetchhelper_CFLAGS = -fobjc-arc
 
 IFetchModule_FILES = \
 	control-center/IFetchModule.m \
@@ -57,6 +64,7 @@ IFetchWidgets_CFLAGS = -fobjc-arc
 ifeq ($(THEOS_PLATFORM_NAME),linux)
 IFetch_LDFLAGS = -fuse-ld=lld
 ifetch_LDFLAGS = -fuse-ld=lld
+ifetchhelper_LDFLAGS = -fuse-ld=lld
 IFetchModule_LDFLAGS = -fuse-ld=lld
 IFetchWidgets_LDFLAGS = -fuse-ld=lld
 endif
@@ -65,3 +73,6 @@ include $(THEOS)/makefiles/application.mk
 include $(THEOS)/makefiles/tool.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
 include $(THEOS_MAKE_PATH)/appex.mk
+
+internal-stage::
+	$(ECHO_NOTHING)chmod 4755 $(THEOS_STAGING_DIR)/usr/libexec/ifetchhelper$(ECHO_END)

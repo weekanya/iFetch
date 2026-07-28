@@ -59,6 +59,7 @@ typedef NS_ENUM(NSInteger, IFIntegritySeverity) {
 + (NSArray<NSDictionary<NSString *, id> *> *)systemSnapshots;
 + (nullable NSDictionary<NSString *, id> *)captureSystemSnapshotNamed:(NSString *)name
                                                                  error:(NSError **)error;
++ (BOOL)deleteSystemSnapshot:(NSDictionary<NSString *, id> *)snapshot error:(NSError **)error;
 + (NSDictionary<NSString *, NSArray<NSString *> *> *)compareSnapshot:(NSDictionary<NSString *, id> *)older
                                                                   with:(NSDictionary<NSString *, id> *)newer;
 

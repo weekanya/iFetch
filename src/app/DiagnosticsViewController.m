@@ -35,6 +35,8 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 @property (nonatomic, copy) NSArray<NSNumber *> *values;
 @property (nonatomic, strong) UIColor *lineColor;
 @property (nonatomic, assign) double fixedMaximum;
+@property (nonatomic, copy) NSString *unit;
+@property (nonatomic, assign) BOOL rateValues;
 @end
 
 @implementation IFLineChartView
@@ -44,7 +46,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     if (self) {
         _lineColor = UIColor.systemBlueColor;
         self.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-        self.layer.cornerRadius = 12;
+        self.layer.cornerRadius = 16;
         self.clipsToBounds = YES;
     }
     return self;
@@ -60,40 +62,66 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     if (context == NULL) {
         return;
     }
-    CGContextSetStrokeColorWithColor(context, [UIColor separatorColor].CGColor);
-    CGContextSetLineWidth(context, 0.5);
-    for (NSInteger row = 1; row < 4; row++) {
-        CGFloat y = CGRectGetHeight(rect) * row / 4.0;
-        CGContextMoveToPoint(context, 12, y);
-        CGContextAddLineToPoint(context, CGRectGetWidth(rect) - 12, y);
-    }
-    CGContextStrokePath(context);
-    if (self.values.count < 2) {
-        return;
-    }
+    CGRect plot = CGRectMake(44, 12, MAX(1, CGRectGetWidth(rect) - 56), MAX(1, CGRectGetHeight(rect) - 34));
     double maximum = self.fixedMaximum;
     if (maximum <= 0) {
         for (NSNumber *number in self.values) {
             maximum = MAX(maximum, number.doubleValue);
         }
-        maximum = MAX(1.0, maximum * 1.1);
+        maximum = MAX(1.0, maximum * 1.15);
+    }
+    CGContextSetStrokeColorWithColor(context, [UIColor separatorColor].CGColor);
+    CGContextSetLineWidth(context, 0.5);
+    NSDictionary *axisAttributes = @{
+        NSFontAttributeName: [UIFont monospacedDigitSystemFontOfSize:8 weight:UIFontWeightMedium],
+        NSForegroundColorAttributeName: UIColor.tertiaryLabelColor
+    };
+    for (NSInteger row = 0; row <= 3; row++) {
+        CGFloat y = CGRectGetMinY(plot) + CGRectGetHeight(plot) * row / 3.0;
+        CGContextMoveToPoint(context, CGRectGetMinX(plot), y);
+        CGContextAddLineToPoint(context, CGRectGetMaxX(plot), y);
+        double axisValue = maximum * (1.0 - row / 3.0);
+        NSString *axisText = self.rateValues ? [IFetchCore formatRate:axisValue]
+            : [NSString stringWithFormat:@"%.0f%@", axisValue, self.unit ?: @""];
+        [axisText drawInRect:CGRectMake(4, y - 6, 38, 12) withAttributes:axisAttributes];
+    }
+    CGContextStrokePath(context);
+    if (self.values.count < 2) {
+        NSString *empty = IFUI(@"Collecting data…", @"Сбор данных…");
+        CGSize size = [empty sizeWithAttributes:axisAttributes];
+        [empty drawAtPoint:CGPointMake(CGRectGetMidX(plot) - size.width / 2,
+                                       CGRectGetMidY(plot) - size.height / 2)
+            withAttributes:axisAttributes];
+        return;
     }
     UIBezierPath *path = [UIBezierPath bezierPath];
-    CGFloat width = CGRectGetWidth(rect) - 24;
-    CGFloat height = CGRectGetHeight(rect) - 20;
     [self.values enumerateObjectsUsingBlock:^(NSNumber *value, NSUInteger index, __unused BOOL *stop) {
-        CGFloat x = 12 + width * index / MAX((NSUInteger)1, self.values.count - 1);
-        CGFloat y = 10 + height * (1.0 - MIN(1.0, MAX(0.0, value.doubleValue / maximum)));
+        CGFloat x = CGRectGetMinX(plot) + CGRectGetWidth(plot) * index / MAX((NSUInteger)1, self.values.count - 1);
+        CGFloat y = CGRectGetMinY(plot) + CGRectGetHeight(plot) *
+            (1.0 - MIN(1.0, MAX(0.0, value.doubleValue / maximum)));
         if (index == 0) {
             [path moveToPoint:CGPointMake(x, y)];
         } else {
             [path addLineToPoint:CGPointMake(x, y)];
         }
     }];
+    UIBezierPath *fill = [path copy];
+    [fill addLineToPoint:CGPointMake(CGRectGetMaxX(plot), CGRectGetMaxY(plot))];
+    [fill addLineToPoint:CGPointMake(CGRectGetMinX(plot), CGRectGetMaxY(plot))];
+    [fill closePath];
+    [[self.lineColor colorWithAlphaComponent:0.14] setFill];
+    [fill fill];
     path.lineWidth = 2.0;
     path.lineJoinStyle = kCGLineJoinRound;
+    path.lineCapStyle = kCGLineCapRound;
     [self.lineColor setStroke];
     [path stroke];
+    NSNumber *last = self.values.lastObject;
+    CGFloat lastX = CGRectGetMaxX(plot);
+    CGFloat lastY = CGRectGetMinY(plot) + CGRectGetHeight(plot) *
+        (1.0 - MIN(1.0, MAX(0.0, last.doubleValue / maximum)));
+    CGContextSetFillColorWithColor(context, self.lineColor.CGColor);
+    CGContextFillEllipseInRect(context, CGRectMake(lastX - 3.5, lastY - 3.5, 7, 7));
 }
 
 @end
@@ -126,12 +154,14 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     NSArray *titles = @[
         IFUI(@"CPU usage", @"Загрузка CPU"),
         IFUI(@"Memory usage", @"Использование ОЗУ"),
-        IFUI(@"Network throughput", @"Скорость сети"),
+        IFUI(@"Download speed", @"Скорость скачивания"),
+        IFUI(@"Upload speed", @"Скорость отдачи"),
         IFUI(@"Battery temperature", @"Температура батареи"),
         IFUI(@"Battery level", @"Уровень заряда")
     ];
     NSArray *colors = @[UIColor.systemOrangeColor, UIColor.systemPurpleColor,
-                        UIColor.systemBlueColor, UIColor.systemRedColor, UIColor.systemGreenColor];
+                        UIColor.systemBlueColor, UIColor.systemTealColor,
+                        UIColor.systemRedColor, UIColor.systemGreenColor];
     NSMutableArray *charts = [NSMutableArray array];
     NSMutableArray *labels = [NSMutableArray array];
     for (NSUInteger index = 0; index < titles.count; index++) {
@@ -143,7 +173,9 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         value.font = [UIFont monospacedDigitSystemFontOfSize:14 weight:UIFontWeightMedium];
         IFLineChartView *chart = [[IFLineChartView alloc] init];
         chart.lineColor = colors[index];
-        chart.fixedMaximum = (index < 2 || index == 4) ? 100 : (index == 3 ? 60 : 0);
+        chart.fixedMaximum = (index < 2 || index == 5) ? 100 : (index == 4 ? 60 : 0);
+        chart.unit = (index < 2 || index == 5) ? @"%" : (index == 4 ? @"°" : @"");
+        chart.rateValues = index == 2 || index == 3;
         chart.translatesAutoresizingMaskIntoConstraints = NO;
         [chart.heightAnchor constraintEqualToConstant:120].active = YES;
         [stack addArrangedSubview:title];
@@ -184,25 +216,23 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     NSArray<IFMetricSample *> *history = self.monitor.history;
     self.charts[0].values = [history valueForKey:@"cpuPercent"];
     self.charts[1].values = [history valueForKey:@"memoryPercent"];
-    NSMutableArray *network = [NSMutableArray array];
-    for (IFMetricSample *sample in history) {
-        [network addObject:@(sample.downloadBytesPerSecond + sample.uploadBytesPerSecond)];
-    }
-    self.charts[2].values = network;
-    self.charts[3].values = [history valueForKey:@"batteryTemperature"];
-    self.charts[4].values = [history valueForKey:@"batteryLevel"];
+    self.charts[2].values = [history valueForKey:@"downloadBytesPerSecond"];
+    self.charts[3].values = [history valueForKey:@"uploadBytesPerSecond"];
+    self.charts[4].values = [history valueForKey:@"batteryTemperature"];
+    self.charts[5].values = [history valueForKey:@"batteryLevel"];
     IFMetricSample *latest = history.lastObject;
     if (latest == nil) {
         return;
     }
     self.valueLabels[0].text = [NSString stringWithFormat:@"%.1f%%", latest.cpuPercent];
     self.valueLabels[1].text = [NSString stringWithFormat:@"%.1f%%", latest.memoryPercent];
-    self.valueLabels[2].text = [NSString stringWithFormat:@"↓ %@  ↑ %@",
-                                [IFetchCore formatRate:latest.downloadBytesPerSecond],
+    self.valueLabels[2].text = [NSString stringWithFormat:@"↓ %@",
+                                [IFetchCore formatRate:latest.downloadBytesPerSecond]];
+    self.valueLabels[3].text = [NSString stringWithFormat:@"↑ %@",
                                 [IFetchCore formatRate:latest.uploadBytesPerSecond]];
-    self.valueLabels[3].text = latest.batteryTemperature > 0
+    self.valueLabels[4].text = latest.batteryTemperature > 0
         ? [NSString stringWithFormat:@"%.1f °C", latest.batteryTemperature] : IFUI(@"Unavailable", @"Недоступно");
-    self.valueLabels[4].text = latest.batteryLevel > 0
+    self.valueLabels[5].text = latest.batteryLevel > 0
         ? [NSString stringWithFormat:@"%.0f%%", latest.batteryLevel] : IFUI(@"Unavailable", @"Недоступно");
 }
 
@@ -210,6 +240,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 
 @interface IFBatteryViewController : UITableViewController
 @property (nonatomic, strong) IFBatteryDetails *battery;
+@property (nonatomic, strong) NSDate *lastUpdated;
 @end
 
 @implementation IFBatteryViewController
@@ -219,12 +250,33 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.title = IFUI(@"Battery diagnostics", @"Диагностика батареи");
     self.battery = [IFDiagnostics batteryDetails];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
-                                                                                          target:self action:@selector(refresh)];
+                                                                                          target:self action:@selector(refresh:)];
+    self.refreshControl = [[UIRefreshControl alloc] init];
+    [self.refreshControl addTarget:self action:@selector(refresh:) forControlEvents:UIControlEventValueChanged];
 }
 
-- (void)refresh {
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self refresh:nil];
+}
+
+- (void)refresh:(__unused id)sender {
+    self.navigationItem.rightBarButtonItem.enabled = NO;
     self.battery = [IFDiagnostics batteryDetails];
+    self.lastUpdated = NSDate.date;
     [self.tableView reloadData];
+    [self.refreshControl endRefreshing];
+    self.navigationItem.rightBarButtonItem.enabled = YES;
+}
+
+- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(__unused NSInteger)section {
+    if (self.lastUpdated == nil) {
+        return nil;
+    }
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    formatter.timeStyle = NSDateFormatterMediumStyle;
+    return [NSString stringWithFormat:IFUI(@"Updated %@", @"Обновлено %@"),
+            [formatter stringFromDate:self.lastUpdated]];
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
@@ -310,10 +362,10 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.terminateButton.layer.cornerRadius = 12;
     self.terminateButton.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     [self.terminateButton setTitle:IFUI(@"Terminate process", @"Завершить процесс") forState:UIControlStateNormal];
-    [self.terminateButton addTarget:self action:@selector(confirmTermination) forControlEvents:UIControlEventTouchUpInside];
+    [self.terminateButton addTarget:self action:@selector(confirmTermination:) forControlEvents:UIControlEventTouchUpInside];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
         initWithImage:[UIImage systemImageNamed:@"network"] style:UIBarButtonItemStylePlain
-                target:self action:@selector(showConnections)];
+                target:self action:@selector(showConnections:)];
     [self.view addSubview:heading];
     [self.view addSubview:self.chart];
     [self.view addSubview:self.detailsLabel];
@@ -392,7 +444,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         self.relatedTweaks.count ? [self.relatedTweaks componentsJoinedByString:@", "] : IFUI(@"Not detected", @"Не обнаружены")];
 }
 
-- (void)showConnections {
+- (void)showConnections:(__unused id)sender {
     IFProcessSample *process = [self currentProcess];
     if (process == nil) {
         return;
@@ -427,7 +479,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     return self.processName.length > 0 && [self.processName isEqualToString:process.name];
 }
 
-- (void)confirmTermination {
+- (void)confirmTermination:(__unused id)sender {
     IFProcessSample *process = [self currentProcess];
     if (![self isSameProcess:process]) {
         [self refresh:nil];
@@ -486,7 +538,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.monitor = [[IFLiveMetricsMonitor alloc] init];
     self.mode = [[UISegmentedControl alloc] initWithItems:@[@"CPU", @"RAM"]];
     self.mode.selectedSegmentIndex = 0;
-    [self.mode addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
+    [self.mode addTarget:self action:@selector(reload:) forControlEvents:UIControlEventValueChanged];
     self.navigationItem.titleView = self.mode;
 }
 
@@ -504,10 +556,10 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 
 - (void)tick:(__unused NSTimer *)timer {
     [self.monitor refresh];
-    [self reload];
+    [self reload:nil];
 }
 
-- (void)reload {
+- (void)reload:(__unused id)sender {
     self.samples = self.mode.selectedSegmentIndex == 0
         ? [self.monitor.processes topProcessesByCPU:50]
         : [self.monitor.processes topProcessesByMemory:50];
@@ -708,18 +760,18 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.title = @"Jailbreak Health";
     self.monitor = [[IFLiveMetricsMonitor alloc] init];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
-                                                                                          target:self action:@selector(refresh)];
+                                                                                          target:self action:@selector(refresh:)];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    [self refresh];
+    [self refresh:nil];
     [self.refreshTimer invalidate];
-    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:60 target:self selector:@selector(refreshStatus)
+    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:60 target:self selector:@selector(refreshStatus:)
                                                        userInfo:nil repeats:YES];
 }
 
-- (void)refresh {
+- (void)refresh:(__unused id)sender {
     [self.samplingTimer invalidate];
     self.sampleCount = 0;
     [self sampleHealth:nil];
@@ -728,7 +780,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
                                                         userInfo:nil repeats:YES];
 }
 
-- (void)refreshStatus {
+- (void)refreshStatus:(__unused id)sender {
     [self.monitor refresh];
     self.items = [IFDiagnostics healthItemsWithJailbreak:[IFetchCore jailbreakInfo]
                                                 battery:[IFDiagnostics batteryDetails]
@@ -758,10 +810,21 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
-    return self.items.count;
+    return self.items.count + 1;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.row == (NSInteger)self.items.count) {
+        UITableViewCell *cell = IFValueCell(tableView,
+            IFUI(@"Jailbreak integrity", @"Целостность jailbreak"),
+            IFUI(@"Bootstrap files, packages, injection filters and symlinks",
+                 @"Файлы bootstrap, пакеты, фильтры инъекции и символические ссылки"));
+        cell.imageView.image = [UIImage systemImageNamed:@"checkmark.shield"];
+        cell.imageView.tintColor = UIColor.systemBlueColor;
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        return cell;
+    }
     IFHealthItem *item = self.items[indexPath.row];
     UITableViewCell *cell = IFValueCell(tableView, item.title, item.detail);
     NSArray *symbols = @[@"checkmark.circle.fill", @"exclamationmark.triangle.fill", @"xmark.octagon.fill"];
@@ -777,6 +840,10 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.row == (NSInteger)self.items.count) {
+        [self.navigationController pushViewController:[[IFIntegrityViewController alloc] init] animated:YES];
+        return;
+    }
     IFHealthItem *item = self.items[indexPath.row];
     if ([item.identifier isEqualToString:@"recent_crashes"]) {
         [self.navigationController pushViewController:[[IFCrashLogsViewController alloc] init] animated:YES];
@@ -798,18 +865,22 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.details = @{};
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(load:)];
     if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined) {
         [self.locationManager requestWhenInUseAuthorization];
     } else {
-        [self load];
+        [self load:nil];
     }
 }
 
-- (void)load {
+- (void)load:(__unused id)sender {
+    self.navigationItem.rightBarButtonItem.enabled = NO;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSDictionary *details = [IFDiagnostics extendedNetworkDetails];
         dispatch_async(dispatch_get_main_queue(), ^{
             self.details = details;
+            self.navigationItem.rightBarButtonItem.enabled = YES;
             [self.tableView reloadData];
         });
     });
@@ -817,7 +888,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 
 - (void)locationManagerDidChangeAuthorization:(CLLocationManager *)manager {
     if (manager.authorizationStatus != kCLAuthorizationStatusNotDetermined) {
-        [self load];
+        [self load:nil];
     }
 }
 

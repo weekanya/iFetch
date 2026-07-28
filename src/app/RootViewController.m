@@ -60,15 +60,15 @@ static NSString *IFT(NSString *english, NSString *russian) {
     [self setupHeader];
     [self fetchPublicIPAddress];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"waveform.path.ecg"]
-                                                                              style:UIBarButtonItemStylePlain
+                                                                             style:UIBarButtonItemStylePlain
                                                                              target:self
-                                                                             action:@selector(showDiagnostics)];
+                                                                             action:@selector(showDiagnostics:)];
     self.navigationItem.rightBarButtonItem.accessibilityLabel = IFT(@"Diagnostics", @"Диагностика");
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopLiveUpdates)
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stopLiveUpdates:)
                                                  name:UIApplicationDidEnterBackgroundNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(startLiveUpdates)
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(startLiveUpdates:)
                                                  name:UIApplicationWillEnterForegroundNotification object:nil];
-    [self startLiveUpdates];
+    [self startLiveUpdates:nil];
 }
 
 - (void)dealloc {
@@ -76,7 +76,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-- (void)startLiveUpdates {
+- (void)startLiveUpdates:(__unused id)sender {
     if (self.refreshTimer != nil) {
         return;
     }
@@ -87,12 +87,12 @@ static NSString *IFT(NSString *english, NSString *russian) {
                                                        repeats:YES];
 }
 
-- (void)stopLiveUpdates {
+- (void)stopLiveUpdates:(__unused id)sender {
     [self.refreshTimer invalidate];
     self.refreshTimer = nil;
 }
 
-- (void)showDiagnostics {
+- (void)showDiagnostics:(__unused id)sender {
     [self.navigationController pushViewController:[[IFDiagnosticsViewController alloc] init] animated:YES];
 }
 
@@ -106,7 +106,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
     } else if ([destination isEqualToString:@"advanced"]) {
         [self.navigationController pushViewController:[[IFAdvancedMenuViewController alloc] init] animated:YES];
     } else {
-        [self showDiagnostics];
+        [self showDiagnostics:nil];
     }
 }
 
