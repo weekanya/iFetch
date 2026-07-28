@@ -5,6 +5,7 @@
 #import "DiagnosticsViewController.h"
 #import "IFAdvancedViewControllers.h"
 
+#import <objc/message.h>
 #import <spawn.h>
 #import <sys/wait.h>
 
@@ -20,13 +21,20 @@ static NSString *IFT(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];
 }
 
+static void IFTRefreshWidgetTimelines(void) {
+    Class bridge = NSClassFromString(@"IFWidgetRefreshBridge");
+    SEL selector = NSSelectorFromString(@"reload");
+    if (bridge != Nil && [bridge respondsToSelector:selector]) {
+        ((void (*)(id, SEL))objc_msgSend)(bridge, selector);
+    }
+}
+
 @interface RootViewController ()
 
 @property (nonatomic, strong) UISegmentedControl *segmentedControl;
 @property (nonatomic, assign) IFTab selectedTab;
 @property (nonatomic, strong) IFDeviceInfo *device;
 @property (nonatomic, strong) IFJailbreakInfo *jailbreak;
-@property (nonatomic, strong) IFProcessMonitor *processMonitor;
 @property (nonatomic, strong) IFNetworkMonitor *networkMonitor;
 @property (nonatomic, strong) IFNetworkSnapshot *networkSnapshot;
 @property (nonatomic, strong) IFLiveMetricsMonitor *alertMonitor;
@@ -48,7 +56,6 @@ static NSString *IFT(NSString *english, NSString *russian) {
     self.title = @"iFetch";
     self.device = [IFDeviceInfo currentDevice];
     self.jailbreak = [IFetchCore jailbreakInfo];
-    self.processMonitor = [[IFProcessMonitor alloc] init];
     self.networkMonitor = [[IFNetworkMonitor alloc] init];
     self.alertMonitor = [[IFLiveMetricsMonitor alloc] init];
     self.networkSnapshot = [self.networkMonitor refresh];
@@ -147,9 +154,6 @@ static NSString *IFT(NSString *english, NSString *russian) {
     (void)timer;
     self.networkSnapshot = [self.networkMonitor refresh];
     self.refreshTick++;
-    if (self.refreshTick % 2 == 0) {
-        [self.processMonitor refresh];
-    }
     if (self.refreshTick % 15 == 0 && [IFAdvancedDiagnostics alertsEnabled]) {
         [self.alertMonitor refresh];
         [IFAdvancedDiagnostics evaluateAlertsWithMonitor:self.alertMonitor];
@@ -177,7 +181,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
     (void)tableView;
     switch (self.selectedTab) {
         case IFTabOverview: return 3;
-        case IFTabSystem: return 6;
+        case IFTabSystem: return 2;
         case IFTabTools: return 4;
     }
 }
@@ -188,15 +192,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
         return section == 0 ? 1 : 3;
     }
     if (self.selectedTab == IFTabSystem) {
-        switch (section) {
-            case 0: return 6;
-            case 1: return 3;
-            case 2: return 7;
-            case 3: return MAX(1, [self.processMonitor topProcessesByMemory:3].count);
-            case 4: return MAX(1, [self.processMonitor topProcessesByCPU:3].count);
-            case 5: return 4;
-            default: return 0;
-        }
+        return section == 0 ? 6 : 4;
     }
     switch (section) {
         case 0: return 2;
@@ -219,10 +215,6 @@ static NSString *IFT(NSString *english, NSString *russian) {
     if (self.selectedTab == IFTabSystem) {
         return @[
             IFT(@"Hardware", @"Аппаратная часть"),
-            IFT(@"Battery", @"Батарея"),
-            IFT(@"Live network", @"Сеть в реальном времени"),
-            IFT(@"Top-3 by memory", @"Top-3 по оперативной памяти"),
-            IFT(@"Top-3 by CPU", @"Top-3 по CPU"),
             IFT(@"Jailbreak environment", @"Среда jailbreak")
         ][(NSUInteger)section];
     }
@@ -236,11 +228,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     (void)tableView;
-    if (self.selectedTab == IFTabSystem && section == 2) {
-        return IFT(@"The public IP is requested from api.ipify.org. Transfer speed is calculated across active network interfaces.",
-                   @"Публичный IP запрашивается у api.ipify.org. Скорость считается по активным сетевым интерфейсам.");
-    }
-    if (self.selectedTab == IFTabSystem && section == 5 && self.jailbreak.recentCrashCount > 0) {
+    if (self.selectedTab == IFTabSystem && section == 1 && self.jailbreak.recentCrashCount > 0) {
         return IFT(@"Crash logs modified within the last 24 hours were found.",
                    @"Найдены crash-логи, изменённые за последние 24 часа.");
     }
@@ -295,20 +283,6 @@ static NSString *IFT(NSString *english, NSString *russian) {
     cell.imageView.image = [UIImage imageNamed:self.device.imageName] ?: [UIImage imageNamed:@"DevicePhotos/iphone-generic.png"];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     return cell;
-}
-
-- (UITableViewCell *)processCellForSample:(IFProcessSample *)sample metric:(NSString *)metric {
-    UITableViewCell *cell = [self standardCellWithTitle:sample.name value:@""];
-    cell.textLabel.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightRegular];
-    if ([metric isEqualToString:@"cpu"]) {
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%.1f%% · %@", sample.cpuPercent,
-                                     [IFetchCore formatBytes:sample.residentBytes]];
-    } else {
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %.1f%%",
-                                     [IFetchCore formatBytes:sample.residentBytes], sample.cpuPercent];
-    }
-    return [self cell:cell symbol:[metric isEqualToString:@"cpu"] ? @"cpu" : @"memorychip"
-                color:[metric isEqualToString:@"cpu"] ? UIColor.systemOrangeColor : UIColor.systemPurpleColor];
 }
 
 - (UITableViewCell *)actionCellWithTitle:(NSString *)title color:(UIColor *)color {
@@ -386,71 +360,6 @@ static NSString *IFT(NSString *english, NSString *russian) {
                             UIColor.systemPurpleColor, UIColor.systemGrayColor, UIColor.systemRedColor];
         return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
                     color:colors[(NSUInteger)indexPath.row]];
-    }
-
-    if (indexPath.section == 1) {
-        UIDevice *device = [UIDevice currentDevice];
-        device.batteryMonitoringEnabled = YES;
-        NSString *level = device.batteryLevel >= 0
-            ? [NSString stringWithFormat:@"%.0f%%", device.batteryLevel * 100]
-            : IFT(@"Unavailable", @"Недоступно");
-        NSDictionary *states = @{
-            @(UIDeviceBatteryStateUnknown): IFT(@"Unknown", @"Неизвестно"),
-            @(UIDeviceBatteryStateUnplugged): IFT(@"Unplugged", @"Отключена"),
-            @(UIDeviceBatteryStateCharging): IFT(@"Charging", @"Заряжается"),
-            @(UIDeviceBatteryStateFull): IFT(@"Full", @"Заряжена")
-        };
-        NSArray *rows = @[
-            @[IFT(@"Charge level", @"Уровень заряда"), level],
-            @[IFT(@"Status", @"Статус"), states[@(device.batteryState)] ?: IFT(@"Unknown", @"Неизвестно")],
-            @[IFT(@"Cycles", @"Циклы"), [IFetchCore batteryCycleCount] ?: IFT(@"Unavailable", @"Недоступно")]
-        ];
-        UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                                     value:rows[(NSUInteger)indexPath.row][1]];
-        NSArray *symbols = @[@"battery.100", @"bolt.fill", @"arrow.triangle.2.circlepath"];
-        NSArray *colors = @[UIColor.systemGreenColor, UIColor.systemYellowColor, UIColor.systemTealColor];
-        return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
-                    color:colors[(NSUInteger)indexPath.row]];
-    }
-
-    if (indexPath.section == 2) {
-        NSString *dns = self.networkSnapshot.dnsServers.count > 0
-            ? [self.networkSnapshot.dnsServers componentsJoinedByString:@", "]
-            : IFT(@"Unavailable", @"Недоступно");
-        NSArray *rows = @[
-            @[IFT(@"Download", @"Скачивание"), [IFetchCore formatRate:self.networkSnapshot.downloadBytesPerSecond]],
-            @[IFT(@"Upload", @"Отдача"), [IFetchCore formatRate:self.networkSnapshot.uploadBytesPerSecond]],
-            @[IFT(@"Local IP", @"Локальный IP"), self.networkSnapshot.localIPAddress],
-            @[IFT(@"Public IP", @"Публичный IP"), self.publicIPAddress],
-            @[IFT(@"Interface", @"Интерфейс"), self.networkSnapshot.activeInterface],
-            @[@"VPN", self.networkSnapshot.vpnInterface],
-            @[@"DNS", dns]
-        ];
-        UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                                     value:rows[(NSUInteger)indexPath.row][1]];
-        NSArray *symbols = @[@"arrow.down.circle.fill", @"arrow.up.circle.fill", @"network",
-                             @"globe", @"antenna.radiowaves.left.and.right", @"lock.shield.fill",
-                             @"server.rack"];
-        NSArray *colors = @[UIColor.systemBlueColor, UIColor.systemTealColor, UIColor.systemIndigoColor,
-                            [UIColor colorWithRed:0.20 green:0.78 blue:0.92 alpha:1],
-                            UIColor.systemOrangeColor, UIColor.systemGreenColor,
-                            UIColor.systemPurpleColor];
-        return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
-                    color:colors[(NSUInteger)indexPath.row]];
-    }
-
-    if (indexPath.section == 3 || indexPath.section == 4) {
-        BOOL cpu = indexPath.section == 4;
-        NSArray<IFProcessSample *> *samples = cpu
-            ? [self.processMonitor topProcessesByCPU:3]
-            : [self.processMonitor topProcessesByMemory:3];
-        if (samples.count == 0) {
-            UITableViewCell *cell = [self standardCellWithTitle:IFT(@"Unavailable", @"Недоступно")
-                                                         value:@"proc_pidinfo"];
-            return [self cell:cell symbol:cpu ? @"cpu" : @"memorychip"
-                        color:cpu ? UIColor.systemOrangeColor : UIColor.systemPurpleColor];
-        }
-        return [self processCellForSample:samples[(NSUInteger)indexPath.row] metric:cpu ? @"cpu" : @"memory"];
     }
 
     NSString *crashes = self.jailbreak.recentCrashCount > 0
@@ -567,6 +476,12 @@ static NSString *IFT(NSString *english, NSString *russian) {
         NSError *error = nil;
         BOOL success = [IFAdvancedDiagnostics refreshWidgetsWithError:&error];
         dispatch_async(dispatch_get_main_queue(), ^{
+            if (success) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)NSEC_PER_SEC),
+                               dispatch_get_main_queue(), ^{
+                    IFTRefreshWidgetTimelines();
+                });
+            }
             [self showMessage:success
                 ? IFT(@"Widget cache was reset. WidgetKit will rebuild the widgets shortly.",
                       @"Кэш виджетов сброшен. WidgetKit вскоре пересоздаст виджеты.")

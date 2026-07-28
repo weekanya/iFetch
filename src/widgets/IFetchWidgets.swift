@@ -40,8 +40,8 @@ struct IFetchProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<IFetchEntry>) -> Void) {
         let current = entry()
-        let refresh = Calendar.current.date(byAdding: .minute, value: 15, to: current.date)
-            ?? current.date.addingTimeInterval(15 * 60)
+        let refresh = Calendar.current.date(byAdding: .minute, value: 1, to: current.date)
+            ?? current.date.addingTimeInterval(60)
         completion(Timeline(entries: [current], policy: .after(refresh)))
     }
 

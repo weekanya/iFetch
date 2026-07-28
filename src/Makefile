@@ -15,13 +15,14 @@ APPEX_NAME = IFetchWidgets
 IFetch_FILES = \
 	app/main.m \
 	app/AppDelegate.m \
+	app/IFWidgetRefreshBridge.swift \
 	app/RootViewController.m \
 	app/DiagnosticsViewController.m \
 	app/IFAdvancedViewControllers.m \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m \
 	core/IFAdvancedDiagnostics.m
-IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications
+IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications WidgetKit
 IFetch_RESOURCE_DIRS = resources
 IFetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 IFetch_CFLAGS = -fobjc-arc

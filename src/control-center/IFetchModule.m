@@ -40,6 +40,11 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
         self.valueLabel.font = [UIFont monospacedDigitSystemFontOfSize:14 weight:UIFontWeightBold];
         self.valueLabel.textColor = UIColor.whiteColor;
         self.valueLabel.textAlignment = NSTextAlignmentRight;
+        self.valueLabel.adjustsFontSizeToFitWidth = YES;
+        self.valueLabel.minimumScaleFactor = 0.7;
+        self.valueLabel.numberOfLines = 1;
+        [self.valueLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                        forAxis:UILayoutConstraintAxisHorizontal];
         self.progressView = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
         self.progressView.translatesAutoresizingMaskIntoConstraints = NO;
         self.progressView.progressTintColor = color;
@@ -207,7 +212,7 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
 }
 
 - (CGFloat)preferredExpandedContentWidth {
-    return 320;
+    return 360;
 }
 
 - (BOOL)providesOwnPlatter {

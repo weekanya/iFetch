@@ -1,5 +1,14 @@
 #import "AppDelegate.h"
 #import "RootViewController.h"
+#import <objc/message.h>
+
+static void IFReloadWidgetTimelines(void) {
+    Class bridge = NSClassFromString(@"IFWidgetRefreshBridge");
+    SEL selector = NSSelectorFromString(@"reload");
+    if (bridge != Nil && [bridge respondsToSelector:selector]) {
+        ((void (*)(id, SEL))objc_msgSend)(bridge, selector);
+    }
+}
 
 @implementation AppDelegate
 
@@ -15,7 +24,16 @@
             [root openDeepLink:url];
         });
     }
+    IFReloadWidgetTimelines();
     return YES;
+}
+
+- (void)applicationWillEnterForeground:(__unused UIApplication *)application {
+    IFReloadWidgetTimelines();
+}
+
+- (void)applicationDidEnterBackground:(__unused UIApplication *)application {
+    IFReloadWidgetTimelines();
 }
 
 - (BOOL)application:(__unused UIApplication *)application openURL:(NSURL *)url

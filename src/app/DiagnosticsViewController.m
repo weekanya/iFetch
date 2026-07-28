@@ -897,7 +897,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return section == 0 ? 8 : [self.details[@"interfaces"] count];
+    return section == 0 ? 9 : [self.details[@"interfaces"] count];
 }
 
 - (NSString *)tableView:(__unused UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -921,6 +921,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
             @[@"Wi-Fi SSID", [self.details[@"ssid"] length] ? self.details[@"ssid"] : wifiUnavailable],
             @[@"BSSID", [self.details[@"bssid"] length] ? self.details[@"bssid"] : wifiUnavailable],
             @[IFUI(@"Cellular", @"Сотовая сеть"), [self.details[@"radio"] length] ? self.details[@"radio"] : IFUI(@"No active cellular service", @"Нет активной сотовой сети")],
+            @[@"VPN", [self.details[@"vpn"] length] ? self.details[@"vpn"] : IFUI(@"None", @"Нет")],
             @[IFUI(@"DNS latency", @"Задержка DNS"), latency.doubleValue >= 0 ? [NSString stringWithFormat:@"%.0f ms", latency.doubleValue] : IFUI(@"Unavailable", @"Недоступно")],
             @[IFUI(@"Internet", @"Интернет"), internetValue],
             @[IFUI(@"HTTPS latency", @"Задержка HTTPS"), internetLatency.doubleValue >= 0 ? [NSString stringWithFormat:@"%.0f ms", internetLatency.doubleValue] : IFUI(@"Unavailable", @"Недоступно")]

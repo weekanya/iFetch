@@ -43,14 +43,14 @@
             <key>Height</key>
             <integer>2</integer>
             <key>Width</key>
-            <integer>2</integer>
+            <integer>3</integer>
         </dict>
         <key>Landscape</key>
         <dict>
             <key>Height</key>
             <integer>2</integer>
             <key>Width</key>
-            <integer>2</integer>
+            <integer>3</integer>
         </dict>
     </dict>
 </dict>
