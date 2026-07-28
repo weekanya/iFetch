@@ -13,44 +13,17 @@ struct IFetchEntry: TimelineEntry {
     let topProcess: String
     let topMemory: String
     let russian: Bool
-    let accentName: String
-    let primaryMetric: String
-    let refreshMinutes: Int
-    let deepLink: String
 
     var accent: Color {
-        switch accentName {
-        case "green":
-            return .green
-        case "orange":
-            return .orange
-        case "purple":
-            return .purple
-        default:
-            return Color(red: 0.31, green: 0.91, blue: 1)
-        }
+        Color(red: 0.28, green: 0.62, blue: 1)
     }
 
     var primaryValue: Double {
-        switch primaryMetric {
-        case "memory":
-            return memory
-        case "storage":
-            return storage
-        default:
-            return battery
-        }
+        battery
     }
 
     var primaryTitle: String {
-        switch primaryMetric {
-        case "memory":
-            return "RAM"
-        case "storage":
-            return russian ? "ДИСК" : "DISK"
-        default:
-            return russian ? "ЗАРЯД" : "BATTERY"
-        }
+        russian ? "ЗАРЯД" : "BATTERY"
     }
 }
 
@@ -58,9 +31,7 @@ struct IFetchProvider: TimelineProvider {
     func placeholder(in context: Context) -> IFetchEntry {
         IFetchEntry(date: Date(), battery: 82, memory: 61, storage: 48, uptime: "2d 7h",
                     device: "iPhone", system: "iOS 17", crashes: 0,
-                    topProcess: "SpringBoard", topMemory: "312 MB", russian: false,
-                    accentName: "cyan", primaryMetric: "battery", refreshMinutes: 15,
-                    deepLink: "ifetch://diagnostics")
+                    topProcess: "SpringBoard", topMemory: "312 MB", russian: false)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (IFetchEntry) -> Void) {
@@ -69,8 +40,8 @@ struct IFetchProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<IFetchEntry>) -> Void) {
         let current = entry()
-        let refresh = Calendar.current.date(byAdding: .minute, value: current.refreshMinutes, to: current.date)
-            ?? current.date.addingTimeInterval(TimeInterval(current.refreshMinutes * 60))
+        let refresh = Calendar.current.date(byAdding: .minute, value: 15, to: current.date)
+            ?? current.date.addingTimeInterval(15 * 60)
         completion(Timeline(entries: [current], policy: .after(refresh)))
     }
 
@@ -90,11 +61,7 @@ struct IFetchProvider: TimelineProvider {
             crashes: (values["crashes"] as? NSNumber)?.intValue ?? 0,
             topProcess: values["topProcess"] as? String ?? "",
             topMemory: values["topMemory"] as? String ?? "",
-            russian: (values["russian"] as? NSNumber)?.boolValue ?? false,
-            accentName: values["accent"] as? String ?? "cyan",
-            primaryMetric: values["primaryMetric"] as? String ?? "battery",
-            refreshMinutes: max(5, (values["refreshMinutes"] as? NSNumber)?.intValue ?? 15),
-            deepLink: values["deepLink"] as? String ?? "ifetch://diagnostics"
+            russian: (values["russian"] as? NSNumber)?.boolValue ?? false
         )
     }
 }
@@ -314,8 +281,8 @@ struct IFetchWidgetEntryView: View {
         ZStack {
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color(red: 0.02, green: 0.16, blue: 0.31),
-                    Color(red: 0.02, green: 0.38, blue: 0.55)
+                    Color(red: 0.025, green: 0.03, blue: 0.045),
+                    Color(red: 0.065, green: 0.085, blue: 0.13)
                 ]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -328,7 +295,8 @@ struct IFetchWidgetEntryView: View {
                 IFetchLargeView(entry: entry)
             }
         }
-        .widgetURL(URL(string: entry.deepLink))
+        .widgetURL(URL(string: "ifetch://diagnostics"))
+        .environment(\.colorScheme, .dark)
     }
 }
 

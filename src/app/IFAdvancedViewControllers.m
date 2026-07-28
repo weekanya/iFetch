@@ -1,9 +1,6 @@
 #import "IFAdvancedViewControllers.h"
 
 #import "../core/IFAdvancedDiagnostics.h"
-#import "../core/IFWidgetPreferences.h"
-#import <objc/message.h>
-#import <signal.h>
 #import <spawn.h>
 #import <sys/stat.h>
 #import <sys/wait.h>
@@ -34,57 +31,6 @@ static void IFAVShowMessage(UIViewController *controller, NSString *title, NSStr
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
     [controller presentViewController:alert animated:YES completion:nil];
-}
-
-static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback) {
-    NSUInteger index = [values indexOfObject:value];
-    return index == NSNotFound ? fallback : (NSInteger)index;
-}
-
-static void IFAVReloadWidgetTimelines(void) {
-    Class bridge = NSClassFromString(@"IFWidgetBridge");
-    SEL selector = NSSelectorFromString(@"reload");
-    if (bridge != Nil && [bridge respondsToSelector:selector]) {
-        ((void (*)(id, SEL))objc_msgSend)(bridge, selector);
-    }
-}
-
-static void IFAVRestartWidgetExtension(void) {
-    IFProcessMonitor *monitor = [[IFProcessMonitor alloc] init];
-    for (IFProcessSample *process in monitor.allProcesses) {
-        if (process.pid > 0 &&
-            [process.executablePath containsString:@"/IFetchWidgets.appex/IFetchWidgets"]) {
-            kill(process.pid, SIGTERM);
-        }
-    }
-    IFAVReloadWidgetTimelines();
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        IFAVReloadWidgetTimelines();
-    });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        IFAVReloadWidgetTimelines();
-    });
-}
-
-static NSDictionary *IFAVWidgetPreferences(void) {
-    return IFWidgetPreferencesRead();
-}
-
-static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
-    NSMutableDictionary *preferences = [IFAVWidgetPreferences() mutableCopy];
-    if (value != nil) {
-        preferences[key] = value;
-    } else {
-        [preferences removeObjectForKey:key];
-    }
-    NSError *error = nil;
-    BOOL saved = IFWidgetPreferencesWrite(preferences, &error);
-    if (saved) {
-        IFAVRestartWidgetExtension();
-    }
-    return saved;
 }
 
 @interface IFProcessConnectionsViewController ()
@@ -297,19 +243,23 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 
 @end
 
-@interface IFSnapshotsViewController : UITableViewController
+@interface IFSnapshotsViewController ()
 @property (nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *snapshots;
 @property (nonatomic, strong) UIBarButtonItem *compareButton;
 @end
 
 @implementation IFSnapshotsViewController
 
+- (instancetype)init {
+    return [super initWithStyle:UITableViewStyleInsetGrouped];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = IFAV(@"System snapshots", @"Снимки системы");
     UIBarButtonItem *addButton = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(addSnapshot:)];
-    self.compareButton = [[UIBarButtonItem alloc] initWithTitle:IFAV(@"Compare", @"Сравнить")
+    self.compareButton = [[UIBarButtonItem alloc] initWithTitle:IFAV(@"Compare last 2", @"Сравнить 2")
                                                          style:UIBarButtonItemStylePlain
                                                         target:self action:@selector(compare:)];
     self.navigationItem.rightBarButtonItems = @[addButton, self.compareButton];
@@ -402,6 +352,11 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
     return self.snapshots.count;
 }
 
+- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(__unused NSInteger)section {
+    return IFAV(@"The newest snapshots are shown first. Compare uses the latest two. Swipe left to delete.",
+                @"Сначала показаны новые снимки. Сравнение использует два последних. Смахните влево для удаления.");
+}
+
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
  forRowAtIndexPath:(NSIndexPath *)indexPath {
     if (editingStyle != UITableViewCellEditingStyleDelete || indexPath.row >= (NSInteger)self.snapshots.count) {
@@ -418,11 +373,34 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSDictionary *snapshot = self.snapshots[indexPath.row];
-    NSString *detail = [NSString stringWithFormat:@"%@ · %lu %@ · %lu %@",
+    NSString *detail = [NSString stringWithFormat:@"%@\n%lu %@ · %lu %@ · %lu %@ · %lu %@",
         snapshot[@"createdAt"] ?: @"",
         (unsigned long)[snapshot[@"packages"] count], IFAV(@"packages", @"пакетов"),
-        (unsigned long)[snapshot[@"processes"] count], IFAV(@"processes", @"процессов")];
-    return IFAVCell(tableView, @"IFSnapshot", snapshot[@"name"] ?: snapshot[@"createdAt"], detail);
+        (unsigned long)[snapshot[@"processes"] count], IFAV(@"processes", @"процессов"),
+        (unsigned long)[snapshot[@"tweaks"] count], IFAV(@"tweaks", @"твиков"),
+        (unsigned long)[snapshot[@"daemons"] count], IFAV(@"daemons", @"демонов")];
+    UITableViewCell *cell = IFAVCell(tableView, @"IFSnapshot", snapshot[@"name"] ?: snapshot[@"createdAt"], detail);
+    cell.detailTextLabel.numberOfLines = 2;
+    cell.imageView.image = [UIImage systemImageNamed:@"square.stack.3d.up.fill"];
+    cell.imageView.tintColor = UIColor.systemIndigoColor;
+    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.row >= (NSInteger)self.snapshots.count) {
+        return;
+    }
+    NSDictionary *snapshot = self.snapshots[indexPath.row];
+    NSString *message = [NSString stringWithFormat:
+        IFAV(@"Created: %@\nDevice: %@\niFetch: %@\n\nProcesses: %lu\nPackages: %lu\nTweaks: %lu\nDaemons: %lu",
+             @"Создан: %@\nУстройство: %@\niFetch: %@\n\nПроцессы: %lu\nПакеты: %lu\nТвики: %lu\nДемоны: %lu"),
+        snapshot[@"createdAt"] ?: @"—", snapshot[@"device"] ?: @"—", snapshot[@"version"] ?: @"—",
+        (unsigned long)[snapshot[@"processes"] count], (unsigned long)[snapshot[@"packages"] count],
+        (unsigned long)[snapshot[@"tweaks"] count], (unsigned long)[snapshot[@"daemons"] count]];
+    IFAVShowMessage(self, snapshot[@"name"] ?: IFAV(@"Snapshot", @"Снимок"), message);
 }
 
 @end
@@ -538,7 +516,7 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = IFAV(@"Alerts and widgets", @"Уведомления и виджеты");
+    self.title = IFAV(@"Notifications", @"Уведомления");
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -551,100 +529,29 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 }
 
 - (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView {
-    return 3;
+    return 1;
 }
 
-- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return section == 0 ? 1 : (section == 1 ? 4 : 1);
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return 1;
 }
 
-- (NSString *)tableView:(__unused UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    if (section == 0) {
-        return IFAV(@"System alerts", @"Системные уведомления");
-    }
-    return section == 1 ? IFAV(@"Widget appearance", @"Настройка виджетов")
-                        : IFAV(@"Widget maintenance", @"Обслуживание виджета");
+- (NSString *)tableView:(__unused UITableView *)tableView titleForHeaderInSection:(__unused NSInteger)section {
+    return IFAV(@"System alerts", @"Системные уведомления");
 }
 
-- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    if (section == 0) {
-        return IFAV(@"Alerts are generated during active iFetch monitoring for high memory, CPU, temperature and new crashes.",
-                    @"Во время активного мониторинга iFetch сообщает о высокой загрузке ОЗУ, CPU, температуре и новых сбоях.");
-    }
-    return section == 1
-        ? IFAV(@"Changes are saved directly to the widget container and applied immediately.",
-               @"Изменения сохраняются прямо в контейнер виджета и применяются сразу.")
-        : IFAV(@"Restarts only the iFetch widget extension and requests a new timeline.",
-               @"Перезапускает только расширение виджета iFetch и запрашивает новую временную шкалу.");
+- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(__unused NSInteger)section {
+    return IFAV(@"Alerts are generated during active iFetch monitoring for high memory, CPU, temperature and new crashes.",
+                @"Во время активного мониторинга iFetch сообщает о высокой загрузке ОЗУ, CPU, температуре и новых сбоях.");
 }
 
-- (UITableViewCell *)segmentedCell:(UITableView *)tableView title:(NSString *)title
-                             items:(NSArray<NSString *> *)items selected:(NSInteger)selected tag:(NSInteger)tag {
-    UITableViewCell *cell = IFAVCell(tableView, [NSString stringWithFormat:@"IFPreference%ld", (long)tag], title, @"");
-    UISegmentedControl *control = [[UISegmentedControl alloc] initWithItems:items];
-    control.selectedSegmentIndex = selected;
-    control.tag = tag;
-    [control addTarget:self action:@selector(preferenceChanged:) forControlEvents:UIControlEventValueChanged];
-    cell.accessoryView = control;
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(__unused NSIndexPath *)indexPath {
+    UITableViewCell *cell = IFAVCell(tableView, @"IFAlerts", IFAV(@"Health alerts", @"Уведомления о состоянии"), @"");
+    UISwitch *toggle = [[UISwitch alloc] init];
+    toggle.on = [IFAdvancedDiagnostics alertsEnabled];
+    [toggle addTarget:self action:@selector(alertsChanged:) forControlEvents:UIControlEventValueChanged];
+    cell.accessoryView = toggle;
     return cell;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (indexPath.section == 0) {
-        UITableViewCell *cell = IFAVCell(tableView, @"IFAlerts", IFAV(@"Health alerts", @"Уведомления о состоянии"), @"");
-        UISwitch *toggle = [[UISwitch alloc] init];
-        toggle.on = [IFAdvancedDiagnostics alertsEnabled];
-        [toggle addTarget:self action:@selector(alertsChanged:) forControlEvents:UIControlEventValueChanged];
-        cell.accessoryView = toggle;
-        return cell;
-    }
-    if (indexPath.section == 2) {
-        UITableViewCell *cell = IFAVCell(tableView, @"IFWidgetRefresh",
-            IFAV(@"Update widgets now", @"Обновить виджеты сейчас"), @"");
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = UIColor.systemBlueColor;
-        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-        return cell;
-    }
-    NSDictionary *widgetPreferences = IFAVWidgetPreferences();
-    if (indexPath.row == 0) {
-        NSArray *values = @[@"cyan", @"green", @"orange", @"purple"];
-        NSString *value = widgetPreferences[@"accent"] ?: @"cyan";
-        return [self segmentedCell:tableView title:IFAV(@"Accent", @"Цвет")
-                             items:@[@"Cyan", @"Green", @"Orange", @"Purple"]
-                          selected:IFAVSelectedIndex(values, value, 0) tag:100];
-    }
-    if (indexPath.row == 1) {
-        NSArray *values = @[@"battery", @"memory", @"storage"];
-        NSString *value = widgetPreferences[@"primaryMetric"] ?: @"battery";
-        return [self segmentedCell:tableView title:IFAV(@"Main metric", @"Главный показатель")
-                             items:@[IFAV(@"Battery", @"Батарея"), @"RAM", IFAV(@"Storage", @"Диск")]
-                          selected:IFAVSelectedIndex(values, value, 0) tag:101];
-    }
-    if (indexPath.row == 2) {
-        NSInteger minutes = [widgetPreferences[@"refreshMinutes"] integerValue];
-        NSArray *values = @[@5, @15, @30];
-        NSInteger selected = IFAVSelectedIndex(values, @(minutes > 0 ? minutes : 15), 1);
-        return [self segmentedCell:tableView title:IFAV(@"Refresh", @"Обновление")
-                             items:@[@"5m", @"15m", @"30m"] selected:selected tag:102];
-    }
-    NSArray *values = @[@"overview", @"diagnostics", @"advanced"];
-    NSString *value = widgetPreferences[@"deepLink"] ?: @"diagnostics";
-    return [self segmentedCell:tableView title:IFAV(@"Tap opens", @"Открывать")
-                         items:@[IFAV(@"Overview", @"Сводка"), IFAV(@"Diagnostics", @"Диагностика"),
-                                 IFAV(@"Advanced", @"4.0")]
-                      selected:IFAVSelectedIndex(values, value, 1) tag:103];
-}
-
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (indexPath.section != 2) {
-        return;
-    }
-    IFAVRestartWidgetExtension();
-    IFAVShowMessage(self, @"iFetch",
-        IFAV(@"Widget refresh requested. Return to the Home Screen to see the updated widget.",
-             @"Обновление запрошено. Вернитесь на экран «Домой», чтобы увидеть обновлённый виджет."));
 }
 
 - (void)alertsChanged:(UISwitch *)toggle {
@@ -676,27 +583,6 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
     }];
 }
 
-- (void)preferenceChanged:(UISegmentedControl *)control {
-    BOOL saved = NO;
-    if (control.tag == 100) {
-        saved = IFAVSaveWidgetPreference(@"accent",
-            @[@"cyan", @"green", @"orange", @"purple"][(NSUInteger)control.selectedSegmentIndex]);
-    } else if (control.tag == 101) {
-        saved = IFAVSaveWidgetPreference(@"primaryMetric",
-            @[@"battery", @"memory", @"storage"][(NSUInteger)control.selectedSegmentIndex]);
-    } else if (control.tag == 102) {
-        saved = IFAVSaveWidgetPreference(@"refreshMinutes",
-            @[@5, @15, @30][(NSUInteger)control.selectedSegmentIndex]);
-    } else if (control.tag == 103) {
-        saved = IFAVSaveWidgetPreference(@"deepLink",
-            @[@"overview", @"diagnostics", @"advanced"][(NSUInteger)control.selectedSegmentIndex]);
-    }
-    if (!saved) {
-        IFAVShowMessage(self, @"iFetch", IFAV(@"Could not save widget settings.",
-                                              @"Не удалось сохранить настройки виджета."));
-    }
-}
-
 @end
 
 @implementation IFAdvancedMenuViewController
@@ -711,24 +597,21 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
-    return 4;
+    return 3;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSArray *titles = @[
-        IFAV(@"System snapshots", @"Снимки системы"),
         IFAV(@"Injection map", @"Карта инъекций"),
         @"LaunchDaemons",
         IFAV(@"Diagnostic mode", @"Режим диагностики")
     ];
     NSArray *details = @[
-        IFAV(@"Compare processes, packages, tweaks and daemons", @"Сравнение процессов, пакетов, твиков и демонов"),
         IFAV(@"Tweak filters grouped by target process", @"Фильтры твиков по целевым процессам"),
         IFAV(@"Bootstrap daemon state and executable paths", @"Состояние демонов и пути запуска"),
         IFAV(@"Temporarily disable and restore third-party tweaks", @"Временное отключение и возврат сторонних твиков")
     ];
-    NSArray *symbols = @[@"square.stack.3d.up", @"point.3.connected.trianglepath.dotted",
-                         @"gearshape.2", @"stethoscope"];
+    NSArray *symbols = @[@"point.3.connected.trianglepath.dotted", @"gearshape.2", @"stethoscope"];
     UITableViewCell *cell = IFAVCell(tableView, @"IFAdvancedMenu", titles[indexPath.row], details[indexPath.row]);
     cell.imageView.image = [UIImage systemImageNamed:symbols[indexPath.row]];
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -739,7 +622,6 @@ static BOOL IFAVSaveWidgetPreference(NSString *key, id value) {
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSArray *classes = @[
-        [IFSnapshotsViewController class],
         [IFInjectionMapViewController class],
         [IFLaunchDaemonsViewController class],
         [IFDiagnosticModeViewController class]

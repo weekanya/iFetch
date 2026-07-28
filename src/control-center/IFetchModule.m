@@ -24,8 +24,10 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
     self = [super init];
     if (self) {
         self.translatesAutoresizingMaskIntoConstraints = NO;
-        self.backgroundColor = [UIColor colorWithWhite:1 alpha:0.12];
+        self.backgroundColor = [UIColor colorWithRed:0.08 green:0.10 blue:0.15 alpha:0.96];
         self.layer.cornerRadius = 11;
+        self.layer.borderWidth = 0.5;
+        self.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.10].CGColor;
         self.nameLabel = [[UILabel alloc] init];
         self.nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.nameLabel.text = name;
@@ -88,8 +90,8 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
     self.view.layer.cornerRadius = 20;
     self.gradient = [CAGradientLayer layer];
     self.gradient.colors = @[
-        (id)[UIColor colorWithRed:0.02 green:0.16 blue:0.31 alpha:1].CGColor,
-        (id)[UIColor colorWithRed:0.02 green:0.38 blue:0.55 alpha:1].CGColor
+        (id)[UIColor colorWithRed:0.025 green:0.03 blue:0.045 alpha:1].CGColor,
+        (id)[UIColor colorWithRed:0.065 green:0.085 blue:0.13 alpha:1].CGColor
     ];
     self.gradient.startPoint = CGPointMake(0, 0);
     self.gradient.endPoint = CGPointMake(1, 1);
@@ -97,11 +99,11 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
 
     UIView *iconBackground = [[UIView alloc] init];
     iconBackground.translatesAutoresizingMaskIntoConstraints = NO;
-    iconBackground.backgroundColor = [UIColor colorWithWhite:1 alpha:0.16];
+    iconBackground.backgroundColor = [UIColor colorWithRed:0.08 green:0.11 blue:0.17 alpha:1];
     iconBackground.layer.cornerRadius = 12;
     self.iconView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"waveform.path.ecg.rectangle.fill"]];
     self.iconView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.iconView.tintColor = [UIColor colorWithRed:0.31 green:0.91 blue:1 alpha:1];
+    self.iconView.tintColor = [UIColor colorWithRed:0.28 green:0.62 blue:1 alpha:1];
     [iconBackground addSubview:self.iconView];
 
     self.titleLabel = [[UILabel alloc] init];
@@ -126,11 +128,13 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
 
     UIView *networkBackground = [[UIView alloc] init];
     networkBackground.translatesAutoresizingMaskIntoConstraints = NO;
-    networkBackground.backgroundColor = [UIColor colorWithWhite:1 alpha:0.12];
+    networkBackground.backgroundColor = [UIColor colorWithRed:0.08 green:0.10 blue:0.15 alpha:0.96];
     networkBackground.layer.cornerRadius = 10;
+    networkBackground.layer.borderWidth = 0.5;
+    networkBackground.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.10].CGColor;
     UIImageView *networkIcon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.arrow.down"]];
     networkIcon.translatesAutoresizingMaskIntoConstraints = NO;
-    networkIcon.tintColor = [UIColor colorWithRed:0.31 green:0.91 blue:1 alpha:1];
+    networkIcon.tintColor = [UIColor colorWithRed:0.28 green:0.62 blue:1 alpha:1];
     self.networkLabel = [[UILabel alloc] init];
     self.networkLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.networkLabel.font = [UIFont monospacedDigitSystemFontOfSize:9 weight:UIFontWeightSemibold];

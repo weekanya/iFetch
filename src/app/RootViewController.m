@@ -20,6 +20,25 @@ static NSString *IFT(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];
 }
 
+static NSString *IFTSnapshotDate(NSString *value) {
+    if (value.length == 0) {
+        return @"—";
+    }
+    NSDateFormatter *source = [[NSDateFormatter alloc] init];
+    source.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    source.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
+    source.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss'Z'";
+    NSDate *date = [source dateFromString:value];
+    if (date == nil) {
+        return value;
+    }
+    NSDateFormatter *display = [[NSDateFormatter alloc] init];
+    display.locale = [NSLocale localeWithLocaleIdentifier:[IFLanguageManager isRussian] ? @"ru_RU" : @"en_US"];
+    display.dateStyle = NSDateFormatterMediumStyle;
+    display.timeStyle = NSDateFormatterShortStyle;
+    return [display stringFromDate:date];
+}
+
 @interface RootViewController ()
 
 @property (nonatomic, strong) UISegmentedControl *segmentedControl;
@@ -74,6 +93,13 @@ static NSString *IFT(NSString *english, NSString *russian) {
 - (void)dealloc {
     [self.refreshTimer invalidate];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    self.device = [IFDeviceInfo currentDevice];
+    self.jailbreak = [IFetchCore jailbreakInfo];
+    [self.tableView reloadData];
 }
 
 - (void)startLiveUpdates:(__unused id)sender {
@@ -169,7 +195,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     (void)tableView;
     switch (self.selectedTab) {
-        case IFTabOverview: return 3;
+        case IFTabOverview: return 4;
         case IFTabSystem: return 6;
         case IFTabTools: return 4;
     }
@@ -178,7 +204,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
     if (self.selectedTab == IFTabOverview) {
-        return section == 0 ? 1 : 3;
+        return section == 0 || section == 3 ? 1 : 3;
     }
     if (self.selectedTab == IFTabSystem) {
         switch (section) {
@@ -205,8 +231,9 @@ static NSString *IFT(NSString *english, NSString *russian) {
     if (self.selectedTab == IFTabOverview) {
         return @[
             IFT(@"Device", @"Устройство"),
-            IFT(@"Resources", @"Ресурсы"),
-            @"Jailbreak"
+            IFT(@"System resources", @"Ресурсы системы"),
+            IFT(@"Jailbreak status", @"Состояние jailbreak"),
+            IFT(@"System snapshots", @"Снимки системы")
         ][(NSUInteger)section];
     }
     if (self.selectedTab == IFTabSystem) {
@@ -327,8 +354,38 @@ static NSString *IFT(NSString *english, NSString *russian) {
             @[IFT(@"Storage", @"Накопитель"), (usedStorage && totalStorage) ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedStorage.unsignedLongLongValue], [IFetchCore formatBytes:totalStorage.unsignedLongLongValue]] : IFT(@"Unavailable", @"Недоступно")],
             @[IFT(@"Uptime", @"Аптайм"), [IFetchCore systemUptime]]
         ];
-        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                    value:rows[(NSUInteger)indexPath.row][1]];
+        UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                                     value:rows[(NSUInteger)indexPath.row][1]];
+        NSArray *symbols = @[@"memorychip", @"internaldrive", @"clock"];
+        NSArray *colors = @[UIColor.systemPurpleColor, UIColor.systemBlueColor, UIColor.systemGreenColor];
+        cell.imageView.image = [UIImage systemImageNamed:symbols[(NSUInteger)indexPath.row]];
+        cell.imageView.tintColor = colors[(NSUInteger)indexPath.row];
+        return cell;
+    }
+
+    if (indexPath.section == 3) {
+        NSArray<NSDictionary<NSString *, id> *> *snapshots = [IFAdvancedDiagnostics systemSnapshots];
+        NSDictionary *latest = snapshots.firstObject;
+        UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:@"IFSnapshotSummary"];
+        if (cell == nil) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
+                                          reuseIdentifier:@"IFSnapshotSummary"];
+        }
+        cell.textLabel.text = snapshots.count > 0
+            ? [NSString stringWithFormat:IFT(@"%lu snapshots", @"Снимков: %lu"), (unsigned long)snapshots.count]
+            : IFT(@"No snapshots yet", @"Снимков пока нет");
+        cell.detailTextLabel.text = latest != nil
+            ? [NSString stringWithFormat:IFT(@"Latest: %@ · Tap to view or compare",
+                                             @"Последний: %@ · Нажмите для просмотра или сравнения"),
+               IFTSnapshotDate(latest[@"createdAt"])]
+            : IFT(@"Create snapshots and compare system changes",
+                  @"Создавайте снимки и сравнивайте изменения системы");
+        cell.detailTextLabel.numberOfLines = 2;
+        cell.imageView.image = [UIImage systemImageNamed:@"square.stack.3d.up.fill"];
+        cell.imageView.tintColor = UIColor.systemIndigoColor;
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        return cell;
     }
 
     NSArray *rows = @[
@@ -336,8 +393,14 @@ static NSString *IFT(NSString *english, NSString *russian) {
         @[IFT(@"Active tweaks", @"Активные твики"), [NSString stringWithFormat:@"%ld", (long)self.jailbreak.activeTweakCount]],
         @[IFT(@"Hook injector", @"Хук-инжектор"), self.jailbreak.injectorDescription]
     ];
-    return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                value:rows[(NSUInteger)indexPath.row][1]];
+    UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                                 value:rows[(NSUInteger)indexPath.row][1]];
+    NSArray *symbols = @[@"shippingbox.fill", @"puzzlepiece.extension.fill",
+                         @"point.3.connected.trianglepath.dotted"];
+    NSArray *colors = @[UIColor.systemTealColor, UIColor.systemOrangeColor, UIColor.systemPinkColor];
+    cell.imageView.image = [UIImage systemImageNamed:symbols[(NSUInteger)indexPath.row]];
+    cell.imageView.tintColor = colors[(NSUInteger)indexPath.row];
+    return cell;
 }
 
 - (UITableViewCell *)systemCellAtIndexPath:(NSIndexPath *)indexPath {
@@ -424,7 +487,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
     if (indexPath.section == 0) {
         NSArray *titles = @[
             IFT(@"Language", @"Язык"),
-            IFT(@"Notifications and widgets", @"Уведомления и виджеты")
+            IFT(@"Notifications", @"Уведомления")
         ];
         NSArray *values = @[
             [IFLanguageManager isRussian] ? @"Русский" : @"English",
@@ -452,11 +515,19 @@ static NSString *IFT(NSString *english, NSString *russian) {
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
     (void)tableView;
-    return self.selectedTab == IFTabOverview && indexPath.section == 0 ? 88 : 52;
+    if (self.selectedTab == IFTabOverview && indexPath.section == 0) {
+        return 88;
+    }
+    return self.selectedTab == IFTabOverview && indexPath.section == 3 ? 68 : 52;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (self.selectedTab == IFTabOverview && indexPath.section == 3) {
+        [self.navigationController pushViewController:[[IFSnapshotsViewController alloc] init]
+                                             animated:YES];
+        return;
+    }
     if (self.selectedTab != IFTabTools) {
         return;
     }

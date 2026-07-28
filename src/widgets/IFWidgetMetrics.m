@@ -1,6 +1,5 @@
 #import "IFWidgetMetrics.h"
 
-#import "../core/IFWidgetPreferences.h"
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import <mach/mach.h>
@@ -149,18 +148,7 @@ static NSString *IFWidgetFormatBytes(uint64_t bytes) {
 
 + (NSDictionary<NSString *, id> *)snapshot {
     NSDictionary *preferences = [NSDictionary dictionaryWithContentsOfFile:@"/var/mobile/Library/Preferences/com.wee1ka.ifetch.plist"];
-    NSDictionary *widgetPreferences = IFWidgetPreferencesRead();
     BOOL russian = [preferences[@"IFetchLanguage"] isEqualToString:@"ru"];
-    NSString *accent = [widgetPreferences[@"accent"] isKindOfClass:[NSString class]]
-        ? widgetPreferences[@"accent"] : @"cyan";
-    NSString *primaryMetric = [widgetPreferences[@"primaryMetric"] isKindOfClass:[NSString class]]
-        ? widgetPreferences[@"primaryMetric"] : @"battery";
-    NSInteger refreshMinutes = [widgetPreferences[@"refreshMinutes"] integerValue];
-    if (refreshMinutes != 5 && refreshMinutes != 15 && refreshMinutes != 30) {
-        refreshMinutes = 15;
-    }
-    NSString *destination = [widgetPreferences[@"deepLink"] isKindOfClass:[NSString class]]
-        ? widgetPreferences[@"deepLink"] : @"diagnostics";
     UIDevice *device = UIDevice.currentDevice;
     device.batteryMonitoringEnabled = YES;
     float battery = device.batteryLevel;
@@ -175,11 +163,7 @@ static NSString *IFWidgetFormatBytes(uint64_t bytes) {
         @"crashes": @(IFWidgetCrashCount()),
         @"topProcess": topProcess[@"name"] ?: @"",
         @"topMemory": IFWidgetFormatBytes([topProcess[@"memory"] unsignedLongLongValue]),
-        @"russian": @(russian),
-        @"accent": accent,
-        @"primaryMetric": primaryMetric,
-        @"refreshMinutes": @(refreshMinutes),
-        @"deepLink": [NSString stringWithFormat:@"ifetch://%@", destination]
+        @"russian": @(russian)
     };
 }
 

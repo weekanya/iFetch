@@ -11,6 +11,9 @@
 @interface IFPreferencesViewController : UITableViewController
 @end
 
+@interface IFSnapshotsViewController : UITableViewController
+@end
+
 @interface IFProcessConnectionsViewController : UITableViewController
 - (instancetype)initWithProcess:(IFProcessSample *)process;
 @end
