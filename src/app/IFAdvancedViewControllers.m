@@ -243,7 +243,7 @@ static void IFAVShowMessage(UIViewController *controller, NSString *title, NSStr
 
 @end
 
-@interface IFSnapshotsViewController ()
+@interface IFSnapshotsViewController : UITableViewController
 @property (nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *snapshots;
 @property (nonatomic, strong) UIBarButtonItem *compareButton;
 @end
@@ -597,21 +597,24 @@ static void IFAVShowMessage(UIViewController *controller, NSString *title, NSStr
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
-    return 3;
+    return 4;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSArray *titles = @[
+        IFAV(@"System snapshots", @"Снимки системы"),
         IFAV(@"Injection map", @"Карта инъекций"),
         @"LaunchDaemons",
         IFAV(@"Diagnostic mode", @"Режим диагностики")
     ];
     NSArray *details = @[
+        IFAV(@"Compare processes, packages, tweaks and daemons", @"Сравнение процессов, пакетов, твиков и демонов"),
         IFAV(@"Tweak filters grouped by target process", @"Фильтры твиков по целевым процессам"),
         IFAV(@"Bootstrap daemon state and executable paths", @"Состояние демонов и пути запуска"),
         IFAV(@"Temporarily disable and restore third-party tweaks", @"Временное отключение и возврат сторонних твиков")
     ];
-    NSArray *symbols = @[@"point.3.connected.trianglepath.dotted", @"gearshape.2", @"stethoscope"];
+    NSArray *symbols = @[@"square.stack.3d.up", @"point.3.connected.trianglepath.dotted",
+                         @"gearshape.2", @"stethoscope"];
     UITableViewCell *cell = IFAVCell(tableView, @"IFAdvancedMenu", titles[indexPath.row], details[indexPath.row]);
     cell.imageView.image = [UIImage systemImageNamed:symbols[indexPath.row]];
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -622,6 +625,7 @@ static void IFAVShowMessage(UIViewController *controller, NSString *title, NSStr
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSArray *classes = @[
+        [IFSnapshotsViewController class],
         [IFInjectionMapViewController class],
         [IFLaunchDaemonsViewController class],
         [IFDiagnosticModeViewController class]

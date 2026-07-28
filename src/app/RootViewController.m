@@ -20,25 +20,6 @@ static NSString *IFT(NSString *english, NSString *russian) {
     return [IFLanguageManager english:english russian:russian];
 }
 
-static NSString *IFTSnapshotDate(NSString *value) {
-    if (value.length == 0) {
-        return @"—";
-    }
-    NSDateFormatter *source = [[NSDateFormatter alloc] init];
-    source.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-    source.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
-    source.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss'Z'";
-    NSDate *date = [source dateFromString:value];
-    if (date == nil) {
-        return value;
-    }
-    NSDateFormatter *display = [[NSDateFormatter alloc] init];
-    display.locale = [NSLocale localeWithLocaleIdentifier:[IFLanguageManager isRussian] ? @"ru_RU" : @"en_US"];
-    display.dateStyle = NSDateFormatterMediumStyle;
-    display.timeStyle = NSDateFormatterShortStyle;
-    return [display stringFromDate:date];
-}
-
 @interface RootViewController ()
 
 @property (nonatomic, strong) UISegmentedControl *segmentedControl;
@@ -195,7 +176,7 @@ static NSString *IFTSnapshotDate(NSString *value) {
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     (void)tableView;
     switch (self.selectedTab) {
-        case IFTabOverview: return 4;
+        case IFTabOverview: return 3;
         case IFTabSystem: return 6;
         case IFTabTools: return 4;
     }
@@ -204,7 +185,7 @@ static NSString *IFTSnapshotDate(NSString *value) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
     if (self.selectedTab == IFTabOverview) {
-        return section == 0 || section == 3 ? 1 : 3;
+        return section == 0 ? 1 : 3;
     }
     if (self.selectedTab == IFTabSystem) {
         switch (section) {
@@ -232,8 +213,7 @@ static NSString *IFTSnapshotDate(NSString *value) {
         return @[
             IFT(@"Device", @"Устройство"),
             IFT(@"System resources", @"Ресурсы системы"),
-            IFT(@"Jailbreak status", @"Состояние jailbreak"),
-            IFT(@"System snapshots", @"Снимки системы")
+            IFT(@"Jailbreak status", @"Состояние jailbreak")
         ][(NSUInteger)section];
     }
     if (self.selectedTab == IFTabSystem) {
@@ -291,6 +271,15 @@ static NSString *IFTSnapshotDate(NSString *value) {
     return cell;
 }
 
+- (UITableViewCell *)cell:(UITableViewCell *)cell symbol:(NSString *)symbol color:(UIColor *)color {
+    UIImageSymbolConfiguration *configuration =
+        [UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightSemibold];
+    UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:configuration];
+    cell.imageView.image = image ?: [UIImage systemImageNamed:@"circle.fill" withConfiguration:configuration];
+    cell.imageView.tintColor = color;
+    return cell;
+}
+
 - (UITableViewCell *)deviceCell {
     static NSString *identifier = @"DeviceCell";
     UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:identifier];
@@ -318,7 +307,8 @@ static NSString *IFTSnapshotDate(NSString *value) {
         cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %.1f%%",
                                      [IFetchCore formatBytes:sample.residentBytes], sample.cpuPercent];
     }
-    return cell;
+    return [self cell:cell symbol:[metric isEqualToString:@"cpu"] ? @"cpu" : @"memorychip"
+                color:[metric isEqualToString:@"cpu"] ? UIColor.systemOrangeColor : UIColor.systemPurpleColor];
 }
 
 - (UITableViewCell *)actionCellWithTitle:(NSString *)title color:(UIColor *)color {
@@ -363,31 +353,6 @@ static NSString *IFTSnapshotDate(NSString *value) {
         return cell;
     }
 
-    if (indexPath.section == 3) {
-        NSArray<NSDictionary<NSString *, id> *> *snapshots = [IFAdvancedDiagnostics systemSnapshots];
-        NSDictionary *latest = snapshots.firstObject;
-        UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:@"IFSnapshotSummary"];
-        if (cell == nil) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
-                                          reuseIdentifier:@"IFSnapshotSummary"];
-        }
-        cell.textLabel.text = snapshots.count > 0
-            ? [NSString stringWithFormat:IFT(@"%lu snapshots", @"Снимков: %lu"), (unsigned long)snapshots.count]
-            : IFT(@"No snapshots yet", @"Снимков пока нет");
-        cell.detailTextLabel.text = latest != nil
-            ? [NSString stringWithFormat:IFT(@"Latest: %@ · Tap to view or compare",
-                                             @"Последний: %@ · Нажмите для просмотра или сравнения"),
-               IFTSnapshotDate(latest[@"createdAt"])]
-            : IFT(@"Create snapshots and compare system changes",
-                  @"Создавайте снимки и сравнивайте изменения системы");
-        cell.detailTextLabel.numberOfLines = 2;
-        cell.imageView.image = [UIImage systemImageNamed:@"square.stack.3d.up.fill"];
-        cell.imageView.tintColor = UIColor.systemIndigoColor;
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-        return cell;
-    }
-
     NSArray *rows = @[
         @[IFT(@"Installed packages", @"Установлено пакетов"), [NSString stringWithFormat:@"%ld", (long)self.jailbreak.installedPackageCount]],
         @[IFT(@"Active tweaks", @"Активные твики"), [NSString stringWithFormat:@"%ld", (long)self.jailbreak.activeTweakCount]],
@@ -413,8 +378,14 @@ static NSString *IFTSnapshotDate(NSString *value) {
             @[IFT(@"Darwin kernel", @"Ядро Darwin"), [IFetchCore darwinVersion]],
             @[IFT(@"Thermal state", @"Температура"), [self thermalStateDescription]]
         ];
-        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                    value:rows[(NSUInteger)indexPath.row][1]];
+        UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                                     value:rows[(NSUInteger)indexPath.row][1]];
+        NSArray *symbols = @[@"iphone", @"number", @"cpu", @"rectangle.3.group",
+                             @"terminal", @"thermometer"];
+        NSArray *colors = @[UIColor.systemBlueColor, UIColor.systemIndigoColor, UIColor.systemOrangeColor,
+                            UIColor.systemPurpleColor, UIColor.systemGrayColor, UIColor.systemRedColor];
+        return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
+                    color:colors[(NSUInteger)indexPath.row]];
     }
 
     if (indexPath.section == 1) {
@@ -434,8 +405,12 @@ static NSString *IFTSnapshotDate(NSString *value) {
             @[IFT(@"Status", @"Статус"), states[@(device.batteryState)] ?: IFT(@"Unknown", @"Неизвестно")],
             @[IFT(@"Cycles", @"Циклы"), [IFetchCore batteryCycleCount] ?: IFT(@"Unavailable", @"Недоступно")]
         ];
-        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                    value:rows[(NSUInteger)indexPath.row][1]];
+        UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                                     value:rows[(NSUInteger)indexPath.row][1]];
+        NSArray *symbols = @[@"battery.100", @"bolt.fill", @"arrow.triangle.2.circlepath"];
+        NSArray *colors = @[UIColor.systemGreenColor, UIColor.systemYellowColor, UIColor.systemTealColor];
+        return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
+                    color:colors[(NSUInteger)indexPath.row]];
     }
 
     if (indexPath.section == 2) {
@@ -451,8 +426,16 @@ static NSString *IFTSnapshotDate(NSString *value) {
             @[@"VPN", self.networkSnapshot.vpnInterface],
             @[@"DNS", dns]
         ];
-        return [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
-                                    value:rows[(NSUInteger)indexPath.row][1]];
+        UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
+                                                     value:rows[(NSUInteger)indexPath.row][1]];
+        NSArray *symbols = @[@"arrow.down.circle.fill", @"arrow.up.circle.fill", @"network",
+                             @"globe", @"antenna.radiowaves.left.and.right", @"lock.shield.fill",
+                             @"server.rack"];
+        NSArray *colors = @[UIColor.systemBlueColor, UIColor.systemTealColor, UIColor.systemIndigoColor,
+                            UIColor.systemCyanColor, UIColor.systemOrangeColor, UIColor.systemGreenColor,
+                            UIColor.systemPurpleColor];
+        return [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
+                    color:colors[(NSUInteger)indexPath.row]];
     }
 
     if (indexPath.section == 3 || indexPath.section == 4) {
@@ -461,7 +444,10 @@ static NSString *IFTSnapshotDate(NSString *value) {
             ? [self.processMonitor topProcessesByCPU:3]
             : [self.processMonitor topProcessesByMemory:3];
         if (samples.count == 0) {
-            return [self standardCellWithTitle:IFT(@"Unavailable", @"Недоступно") value:@"proc_pidinfo"];
+            UITableViewCell *cell = [self standardCellWithTitle:IFT(@"Unavailable", @"Недоступно")
+                                                         value:@"proc_pidinfo"];
+            return [self cell:cell symbol:cpu ? @"cpu" : @"memorychip"
+                        color:cpu ? UIColor.systemOrangeColor : UIColor.systemPurpleColor];
         }
         return [self processCellForSample:samples[(NSUInteger)indexPath.row] metric:cpu ? @"cpu" : @"memory"];
     }
@@ -477,6 +463,12 @@ static NSString *IFTSnapshotDate(NSString *value) {
     ];
     UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
                                                  value:rows[(NSUInteger)indexPath.row][1]];
+    NSArray *symbols = @[@"bolt.shield.fill", @"folder.fill",
+                         @"point.3.connected.trianglepath.dotted", @"exclamationmark.triangle.fill"];
+    NSArray *colors = @[UIColor.systemGreenColor, UIColor.systemBlueColor, UIColor.systemPinkColor,
+                        UIColor.systemOrangeColor];
+    [self cell:cell symbol:symbols[(NSUInteger)indexPath.row]
+             color:colors[(NSUInteger)indexPath.row]];
     if (indexPath.row == 3 && self.jailbreak.recentCrashCount > 0) {
         cell.detailTextLabel.textColor = [UIColor systemOrangeColor];
     }
@@ -523,16 +515,11 @@ static NSString *IFTSnapshotDate(NSString *value) {
     if (self.selectedTab == IFTabOverview && indexPath.section == 0) {
         return 88;
     }
-    return self.selectedTab == IFTabOverview && indexPath.section == 3 ? 68 : 52;
+    return 52;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (self.selectedTab == IFTabOverview && indexPath.section == 3) {
-        [self.navigationController pushViewController:[[IFSnapshotsViewController alloc] init]
-                                             animated:YES];
-        return;
-    }
     if (self.selectedTab != IFTabTools) {
         return;
     }

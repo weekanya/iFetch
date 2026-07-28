@@ -11,16 +11,16 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
 }
 
 @interface IFCCMetricView : UIView
-@property (nonatomic, strong) UILabel *nameLabel;
+@property (nonatomic, strong) UIImageView *metricIconView;
 @property (nonatomic, strong) UILabel *valueLabel;
 @property (nonatomic, strong) UIProgressView *progressView;
-- (instancetype)initWithName:(NSString *)name color:(UIColor *)color;
+- (instancetype)initWithSymbol:(NSString *)symbol color:(UIColor *)color;
 - (void)setValue:(double)value;
 @end
 
 @implementation IFCCMetricView
 
-- (instancetype)initWithName:(NSString *)name color:(UIColor *)color {
+- (instancetype)initWithSymbol:(NSString *)symbol color:(UIColor *)color {
     self = [super init];
     if (self) {
         self.translatesAutoresizingMaskIntoConstraints = NO;
@@ -28,11 +28,13 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
         self.layer.cornerRadius = 11;
         self.layer.borderWidth = 0.5;
         self.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.10].CGColor;
-        self.nameLabel = [[UILabel alloc] init];
-        self.nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        self.nameLabel.text = name;
-        self.nameLabel.font = [UIFont systemFontOfSize:9 weight:UIFontWeightSemibold];
-        self.nameLabel.textColor = [UIColor colorWithWhite:1 alpha:0.72];
+        UIImageSymbolConfiguration *configuration =
+            [UIImageSymbolConfiguration configurationWithPointSize:11 weight:UIImageSymbolWeightSemibold];
+        UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:configuration];
+        self.metricIconView = [[UIImageView alloc] initWithImage:image];
+        self.metricIconView.translatesAutoresizingMaskIntoConstraints = NO;
+        self.metricIconView.tintColor = color;
+        self.metricIconView.contentMode = UIViewContentModeScaleAspectFit;
         self.valueLabel = [[UILabel alloc] init];
         self.valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.valueLabel.font = [UIFont monospacedDigitSystemFontOfSize:14 weight:UIFontWeightBold];
@@ -42,18 +44,20 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
         self.progressView.translatesAutoresizingMaskIntoConstraints = NO;
         self.progressView.progressTintColor = color;
         self.progressView.trackTintColor = [UIColor colorWithWhite:1 alpha:0.14];
-        [self addSubview:self.nameLabel];
+        [self addSubview:self.metricIconView];
         [self addSubview:self.valueLabel];
         [self addSubview:self.progressView];
         [NSLayoutConstraint activateConstraints:@[
-            [self.nameLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:9],
-            [self.nameLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:6],
+            [self.metricIconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:9],
+            [self.metricIconView.topAnchor constraintEqualToAnchor:self.topAnchor constant:6],
+            [self.metricIconView.widthAnchor constraintEqualToConstant:14],
+            [self.metricIconView.heightAnchor constraintEqualToConstant:14],
             [self.valueLabel.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-9],
-            [self.valueLabel.centerYAnchor constraintEqualToAnchor:self.nameLabel.centerYAnchor],
-            [self.valueLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.nameLabel.trailingAnchor constant:4],
+            [self.valueLabel.centerYAnchor constraintEqualToAnchor:self.metricIconView.centerYAnchor],
+            [self.valueLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.metricIconView.trailingAnchor constant:4],
             [self.progressView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:9],
             [self.progressView.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-9],
-            [self.progressView.topAnchor constraintEqualToAnchor:self.nameLabel.bottomAnchor constant:6],
+            [self.progressView.topAnchor constraintEqualToAnchor:self.metricIconView.bottomAnchor constant:5],
             [self.progressView.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-7]
         ]];
     }
@@ -123,8 +127,9 @@ static NSString *IFCCText(NSString *english, NSString *russian) {
     self.temperatureLabel.textColor = UIColor.whiteColor;
     self.temperatureLabel.textAlignment = NSTextAlignmentRight;
 
-    self.cpuView = [[IFCCMetricView alloc] initWithName:@"CPU" color:UIColor.systemOrangeColor];
-    self.memoryView = [[IFCCMetricView alloc] initWithName:@"RAM" color:[UIColor colorWithRed:0.70 green:0.48 blue:1 alpha:1]];
+    self.cpuView = [[IFCCMetricView alloc] initWithSymbol:@"cpu" color:UIColor.systemOrangeColor];
+    self.memoryView = [[IFCCMetricView alloc] initWithSymbol:@"memorychip"
+                                                       color:[UIColor colorWithRed:0.70 green:0.48 blue:1 alpha:1]];
 
     UIView *networkBackground = [[UIView alloc] init];
     networkBackground.translatesAutoresizingMaskIntoConstraints = NO;
