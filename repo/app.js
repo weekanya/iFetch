@@ -97,16 +97,16 @@ const fallbackPackages = [
   {
     Package: "com.wee1ka.ifetch",
     Name: "iFetch",
-    Version: "3.1.1",
+    Version: "4.0.0",
     Architecture: "iphoneos-arm64",
     Description: "Advanced system diagnostics, process monitor and CLI fetch for rootless jailbreak devices on iOS 14–17",
     Maintainer: "wee1ka",
     Author: "wee1ka",
-    Section: "Utilities",
+    Section: "Tweaks",
     Depends: "firmware (>= 14.0), firmware (<< 18.0), mobilesubstrate, com.opa334.ccsupport",
     Icon: `${repositoryURL}ifetch-icon.png`,
     SileoDepiction: `${repositoryURL}sileodepiction.json`,
-    Filename: "debs/com.wee1ka.ifetch_3.1.1_iphoneos-arm64.deb"
+    Filename: "debs/com.wee1ka.ifetch_4.0.0_iphoneos-arm64.deb"
   }
 ];
 

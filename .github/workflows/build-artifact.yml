@@ -130,7 +130,7 @@ jobs:
           - WidgetKit extension
           - Control Center module
           - Terminal command \`ifetch\`
-          - Restricted privileged helper for socket inspection and diagnostic mode
+          - Restricted privileged helper for socket inspection, diagnostic mode, and widget refresh
           - Device images and localized resources
 
           ## Build information

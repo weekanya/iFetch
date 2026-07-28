@@ -8,7 +8,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Native diagnostics for rootless jailbreaks\n\niFetch 3.1 adds native WidgetKit widgets, safe process termination, drill-down crash reports, continuously refreshed Jailbreak Health data, and a redesigned Control Center module."
+          "markdown": "### Diagnostics for rootless jailbreaks\n\niFetch 4.0 adds deeper process, crash, network, and jailbreak diagnostics alongside refreshed widgets and a live Control Center dashboard."
         },
         {
           "class": "DepictionSeparatorView"
@@ -19,7 +19,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Small, medium, and large system widgets\n- Battery, RAM, storage, uptime, crash count, and top-memory process on the Home Screen\n- Confirmed SIGTERM action from process details\n- Recent crashes open directly from Jailbreak Health\n- Recursive crash-log discovery with pull-to-refresh and automatic refresh\n- Redesigned 2×2 Control Center module\n- Live charts, advanced networking, tweak inspection, report export, and full CLI"
+          "markdown": "- Process connections, safe termination, and detailed CPU history\n- Crash analysis, injection map, LaunchDaemons, integrity checks, and system snapshots\n- Wi-Fi, DNS, VPN, traffic totals, and latency details\n- Health notifications and reversible diagnostic mode\n- Dark small, medium, and large widgets with automatic and manual refresh\n- Live 3×2 Control Center dashboard\n- Full terminal client for NewTerm and SSH"
         }
       ],
       "class": "DepictionStackView"
@@ -29,15 +29,15 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Диагностика rootless-устройства\n\niFetch 3.1 добавляет настоящие виджеты WidgetKit, безопасное завершение процессов, подробный просмотр сбоев, постоянное обновление Jailbreak Health и полностью обновлённый модуль Control Center."
+          "markdown": "### Диагностика rootless-устройства\n\niFetch 4.0 расширяет диагностику процессов, сбоев, сети и jailbreak, а также обновляет виджеты и панель Control Center."
         },
         {
           "class": "DepictionHeaderView",
-          "title": "Что нового"
+          "title": "Главное"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Малый, средний и большой системные виджеты\n- Заряд, ОЗУ, хранилище, аптайм, сбои и самый прожорливый процесс на домашнем экране\n- Завершение процесса через SIGTERM с подтверждением\n- Переход к свежим сбоям прямо из Jailbreak Health\n- Рекурсивный поиск crash-логов, pull-to-refresh и автообновление\n- Новый модуль Control Center размером 2×2\n- Все графики, сеть, твики, экспорт отчёта и CLI из iFetch 3.0"
+          "markdown": "- Соединения процессов, безопасное завершение и подробная история CPU\n- Анализ сбоев, карта инъекций, LaunchDaemons, проверка целостности и снимки системы\n- Wi-Fi, DNS, VPN, трафик и задержка сети\n- Уведомления о состоянии и обратимый режим диагностики\n- Тёмные виджеты трёх размеров с автоматическим и ручным обновлением\n- Живая панель Control Center размером 3×2\n- Полноценный терминальный клиент для NewTerm и SSH"
         }
       ],
       "class": "DepictionStackView"
@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 3.1.1"
+          "title": "Version 4.0.0"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Changed the Debian package category to Tweaks for Havoc compatibility\n- Updated package, application, widget, and Control Center version metadata\n- No functional changes from iFetch 3.1.0"
+          "markdown": "- New advanced diagnostics suite\n- Redesigned dark widgets and Control Center module\n- Widget timeline and cache refresh fixes\n- Improved network visibility and crash inspection\n- Rootless-only support for iOS 14–17"
         }
       ],
       "class": "DepictionStackView"
