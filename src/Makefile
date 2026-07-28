@@ -22,7 +22,6 @@ IFetch_FILES = \
 IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension
 IFetch_RESOURCE_DIRS = resources
 IFetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
-IFetch_LDFLAGS = -fuse-ld=lld
 IFetch_CFLAGS = -fobjc-arc
 
 ifetch_FILES = \
@@ -31,7 +30,6 @@ ifetch_FILES = \
 	core/IFDiagnostics.m
 ifetch_FRAMEWORKS = Foundation SystemConfiguration NetworkExtension
 ifetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
-ifetch_LDFLAGS = -fuse-ld=lld
 ifetch_CFLAGS = -fobjc-arc
 
 IFetchModule_FILES = \
@@ -42,7 +40,6 @@ IFetchModule_FRAMEWORKS = UIKit Foundation SystemConfiguration NetworkExtension
 IFetchModule_PRIVATE_FRAMEWORKS = ControlCenterUIKit
 IFetchModule_INSTALL_PATH = /Library/ControlCenter/Bundles
 IFetchModule_CFLAGS = -fobjc-arc
-IFetchModule_LDFLAGS = -fuse-ld=lld
 IFetchModule_BUNDLE_EXTENSION = bundle
 IFetchModule_BUNDLE_RESOURCE_DIRS = packaging/ControlCenterModule
 
@@ -54,8 +51,14 @@ IFetchWidgets_INSTALL_PATH = /Applications/IFetch.app/PlugIns
 IFetchWidgets_RESOURCE_DIRS = packaging/WidgetExtension
 IFetchWidgets_SWIFT_BRIDGING_HEADER = widgets/IFetchWidgets-Bridging-Header.h
 IFetchWidgets_CODESIGN_FLAGS = -Spackaging/WidgetEntitlements.plist
-IFetchWidgets_LDFLAGS = -fuse-ld=lld
 IFetchWidgets_CFLAGS = -fobjc-arc
+
+ifeq ($(THEOS_PLATFORM_NAME),linux)
+IFetch_LDFLAGS = -fuse-ld=lld
+ifetch_LDFLAGS = -fuse-ld=lld
+IFetchModule_LDFLAGS = -fuse-ld=lld
+IFetchWidgets_LDFLAGS = -fuse-ld=lld
+endif
 
 include $(THEOS)/makefiles/application.mk
 include $(THEOS)/makefiles/tool.mk

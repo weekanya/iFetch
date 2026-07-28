@@ -1,0 +1,166 @@
+name: Build Rootless Artifact
+run-name: "iFetch artifact · ${{ github.ref_name }} · #${{ github.run_number }}"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".github/workflows/build-artifact.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - ".github/workflows/build-artifact.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-artifact-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    env:
+      THEOS: ${{ runner.tool_cache }}/ifetch-theos
+      THEOS_COMMIT: 16362d3aa83a0acd56df4493d575d34306d42478
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_15.4.app/Contents/Developer
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Restore build tools
+        id: tools-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.THEOS }}
+            /Users/runner/Library/Caches/Homebrew
+          key: ifetch-build-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.THEOS_COMMIT }}-v1
+
+      - name: Install build tools
+        run: |
+          set -euo pipefail
+
+          if [[ ! -d "$THEOS/.git" ]]; then
+            git clone --recursive https://github.com/theos/theos.git "$THEOS"
+            git -C "$THEOS" checkout "$THEOS_COMMIT"
+            git -C "$THEOS" submodule update --init --recursive
+          fi
+
+          for formula in ldid dpkg xz; do
+            brew list "$formula" >/dev/null 2>&1 || brew install "$formula"
+          done
+
+      - name: Validate source
+        run: src/scripts/validate_project.sh
+
+      - name: Build rootless package
+        run: make -C src clean package FINALPACKAGE=1
+
+      - name: Inspect and describe artifact
+        id: package
+        env:
+          TOOLS_CACHE_HIT: ${{ steps.tools-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+
+          version="$(sed -n 's/^Version: //p' src/control)"
+          package="packages/com.wee1ka.ifetch_${version}_iphoneos-arm64.deb"
+          package_name="$(basename "$package")"
+
+          test -f "$package"
+
+          invalid_paths="$(
+            dpkg-deb -c "$package" |
+            awk '{print $6}' |
+            sed 's#^\./##' |
+            grep -Ev '^(|var/?|var/jb(/|$))' || true
+          )"
+
+          if [[ -n "$invalid_paths" ]]; then
+            printf '%s\n' "$invalid_paths"
+            exit 1
+          fi
+
+          src/scripts/validate_project.sh
+
+          mkdir -p artifact
+          cp "$package" "artifact/$package_name"
+          dpkg-deb -I "$package" > artifact/PACKAGE_CONTROL.txt
+          dpkg-deb -c "$package" > artifact/PACKAGE_CONTENTS.txt
+
+          (
+            cd artifact
+            shasum -a 256 "$package_name" > "$package_name.sha256"
+          )
+
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          xcode_version="$(xcodebuild -version | tr '\n' ' ')"
+          sha256="$(shasum -a 256 "$package" | awk '{print $1}')"
+          generated_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          cat > artifact/BUILD_INFO.md <<EOF
+          # iFetch ${version} rootless build
+
+          This is an automated development artifact built from the repository source. It is not a GitHub Release and is not published to the Sileo repository.
+
+          ## Package
+
+          - File: \`${package_name}\`
+          - Version: \`${version}\`
+          - Architecture: \`iphoneos-arm64\`
+          - Package scheme: \`rootless\`
+          - Minimum deployment target: \`iOS 14.0\`
+          - Install prefix: \`/var/jb\`
+          - SHA-256: \`${sha256}\`
+
+          ## Included components
+
+          - iFetch application
+          - WidgetKit extension
+          - Control Center module
+          - Terminal command \`ifetch\`
+          - Device images and localized resources
+
+          ## Build information
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Branch or tag: \`${GITHUB_REF_NAME}\`
+          - Workflow run: \`${GITHUB_RUN_NUMBER}\`
+          - Runner: \`${RUNNER_OS} ${RUNNER_ARCH}\`
+          - Build tools cache hit: \`${TOOLS_CACHE_HIT:-false}\`
+          - Xcode: \`${xcode_version}\`
+          - iPhoneOS SDK: \`${sdk_version}\`
+          - Generated: \`${generated_at}\`
+
+          ## Additional files
+
+          - \`${package_name}.sha256\` verifies the downloaded package
+          - \`PACKAGE_CONTROL.txt\` contains Debian package metadata
+          - \`PACKAGE_CONTENTS.txt\` lists every installed file
+
+          Download the artifact, extract it, verify the SHA-256 file, and install the \`.deb\` through Sileo, Zebra, Filza, or \`dpkg\`.
+          EOF
+
+          cat artifact/BUILD_INFO.md >> "$GITHUB_STEP_SUMMARY"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'package_name=%s\n' "$package_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: iFetch-${{ steps.package.outputs.version }}-rootless-build-${{ github.run_number }}
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
