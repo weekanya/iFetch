@@ -1,7 +1,9 @@
 #import "DiagnosticsViewController.h"
 
 #import "../core/IFDiagnostics.h"
+#import "../core/IFAdvancedDiagnostics.h"
 #import "../core/IFetchCore.h"
+#import "IFAdvancedViewControllers.h"
 #import <CoreLocation/CoreLocation.h>
 #import <errno.h>
 #import <objc/runtime.h>
@@ -309,6 +311,9 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     self.terminateButton.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     [self.terminateButton setTitle:IFUI(@"Terminate process", @"Завершить процесс") forState:UIControlStateNormal];
     [self.terminateButton addTarget:self action:@selector(confirmTermination) forControlEvents:UIControlEventTouchUpInside];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithImage:[UIImage systemImageNamed:@"network"] style:UIBarButtonItemStylePlain
+                target:self action:@selector(showConnections)];
     [self.view addSubview:heading];
     [self.view addSubview:self.chart];
     [self.view addSubview:self.detailsLabel];
@@ -385,6 +390,15 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         current.executablePath.length ? current.executablePath : IFUI(@"Path unavailable", @"Путь недоступен"),
         IFUI(@"Injected tweaks", @"Внедряемые твики"),
         self.relatedTweaks.count ? [self.relatedTweaks componentsJoinedByString:@", "] : IFUI(@"Not detected", @"Не обнаружены")];
+}
+
+- (void)showConnections {
+    IFProcessSample *process = [self currentProcess];
+    if (process == nil) {
+        return;
+    }
+    [self.navigationController pushViewController:
+        [[IFProcessConnectionsViewController alloc] initWithProcess:process] animated:YES];
 }
 
 - (IFProcessSample *)currentProcess {
@@ -588,7 +602,9 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     textView.translatesAutoresizingMaskIntoConstraints = NO;
     textView.editable = NO;
     textView.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
-    textView.text = log.preview;
+    IFCrashAnalysis *analysis = [IFAdvancedDiagnostics analysisForCrashLog:log];
+    textView.text = [NSString stringWithFormat:@"%@\n\n————————————\n\n%@",
+                     analysis.summary, log.preview];
     [controller.view addSubview:textView];
     [NSLayoutConstraint activateConstraints:@[
         [textView.leadingAnchor constraintEqualToAnchor:controller.view.leadingAnchor],
@@ -862,7 +878,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 }
 
 - (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
-    return 7;
+    return 8;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -878,7 +894,8 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         @"Crash Logs",
         IFUI(@"Installed tweaks", @"Установленные твики"),
         @"Jailbreak Health",
-        IFUI(@"Network details", @"Сетевые детали")
+        IFUI(@"Network details", @"Сетевые детали"),
+        IFUI(@"Advanced diagnostics", @"Расширенная диагностика")
     ];
     NSArray *details = @[
         IFUI(@"CPU, RAM, network and temperature history", @"История CPU, ОЗУ, сети и температуры"),
@@ -887,10 +904,11 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         IFUI(@"View, copy and share diagnostic reports", @"Просмотр и отправка диагностических отчётов"),
         IFUI(@"Packages, dylibs and injection filters", @"Пакеты, dylib и фильтры инъекции"),
         IFUI(@"Rootless bootstrap and system status", @"Состояние bootstrap и системы"),
-        IFUI(@"IPv4/IPv6, Wi-Fi, cellular and traffic", @"IPv4/IPv6, Wi-Fi, сотовая сеть и трафик")
+        IFUI(@"IPv4/IPv6, Wi-Fi, cellular and traffic", @"IPv4/IPv6, Wi-Fi, сотовая сеть и трафик"),
+        IFUI(@"Snapshots, integrity, daemons, alerts and widgets", @"Снимки, целостность, демоны, уведомления и виджеты")
     ];
     NSArray *symbols = @[@"chart.xyaxis.line", @"battery.100", @"cpu", @"doc.text.magnifyingglass",
-                         @"puzzlepiece.extension", @"heart.text.square", @"network"];
+                         @"puzzlepiece.extension", @"heart.text.square", @"network", @"waveform.badge.magnifyingglass"];
     cell.textLabel.text = titles[indexPath.row];
     cell.detailTextLabel.text = details[indexPath.row];
     cell.imageView.image = [UIImage systemImageNamed:symbols[indexPath.row]];
@@ -903,7 +921,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     NSArray *controllers = @[
         [IFChartsViewController class], [IFBatteryViewController class], [IFProcessesViewController class],
         [IFCrashLogsViewController class], [IFTweaksViewController class], [IFHealthViewController class],
-        [IFNetworkDetailsViewController class]
+        [IFNetworkDetailsViewController class], [IFAdvancedMenuViewController class]
     ];
     UIViewController *controller = [[controllers[indexPath.row] alloc] init];
     [self.navigationController pushViewController:controller animated:YES];

@@ -1,0 +1,633 @@
+#import "IFAdvancedViewControllers.h"
+
+#import "../core/IFAdvancedDiagnostics.h"
+#import <spawn.h>
+#import <sys/wait.h>
+
+extern char **environ;
+
+static NSString *IFAV(NSString *english, NSString *russian) {
+    return [IFLanguageManager english:english russian:russian];
+}
+
+static UITableViewCell *IFAVCell(UITableView *tableView, NSString *identifier,
+                                NSString *title, NSString *detail) {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
+    if (cell == nil) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:identifier];
+    }
+    cell.textLabel.text = title;
+    cell.detailTextLabel.text = detail;
+    cell.detailTextLabel.numberOfLines = 3;
+    cell.accessoryType = UITableViewCellAccessoryNone;
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    cell.imageView.image = nil;
+    return cell;
+}
+
+static void IFAVShowMessage(UIViewController *controller, NSString *title, NSString *message) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+    [controller presentViewController:alert animated:YES completion:nil];
+}
+
+static NSInteger IFAVSelectedIndex(NSArray *values, id value, NSInteger fallback) {
+    NSUInteger index = [values indexOfObject:value];
+    return index == NSNotFound ? fallback : (NSInteger)index;
+}
+
+@interface IFProcessConnectionsViewController ()
+@property (nonatomic, strong) IFProcessSample *process;
+@property (nonatomic, copy) NSArray<IFProcessConnection *> *connections;
+@end
+
+@implementation IFProcessConnectionsViewController
+
+- (instancetype)initWithProcess:(IFProcessSample *)process {
+    self = [super initWithStyle:UITableViewStyleInsetGrouped];
+    if (self) {
+        _process = process;
+        self.title = IFAV(@"Connections", @"Соединения");
+    }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.refreshControl = [[UIRefreshControl alloc] init];
+    [self.refreshControl addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
+    [self reload];
+}
+
+- (void)reload {
+    self.connections = [IFAdvancedDiagnostics connectionsForProcess:self.process];
+    UILabel *empty = [[UILabel alloc] init];
+    empty.text = IFAV(@"No visible network connections", @"Видимые сетевые соединения не найдены");
+    empty.textAlignment = NSTextAlignmentCenter;
+    empty.textColor = UIColor.secondaryLabelColor;
+    empty.numberOfLines = 0;
+    self.tableView.backgroundView = self.connections.count == 0 ? empty : nil;
+    [self.tableView reloadData];
+    [self.refreshControl endRefreshing];
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return self.connections.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    IFProcessConnection *connection = self.connections[indexPath.row];
+    NSString *detail = [NSString stringWithFormat:@"%@ → %@%@",
+                        connection.localEndpoint, connection.remoteEndpoint,
+                        connection.state.length ? [@" · " stringByAppendingString:connection.state] : @""];
+    UITableViewCell *cell = IFAVCell(tableView, @"IFConnection", connection.protocolName, detail);
+    cell.imageView.image = [UIImage systemImageNamed:@"network"];
+    return cell;
+}
+
+@end
+
+@interface IFInjectionMapViewController : UITableViewController <UISearchResultsUpdating>
+@property (nonatomic, copy) NSArray<IFInjectionGroup *> *groups;
+@property (nonatomic, copy) NSArray<IFInjectionGroup *> *visibleGroups;
+@end
+
+@implementation IFInjectionMapViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = IFAV(@"Injection map", @"Карта инъекций");
+    UISearchController *search = [[UISearchController alloc] initWithSearchResultsController:nil];
+    search.searchResultsUpdater = self;
+    search.obscuresBackgroundDuringPresentation = NO;
+    self.navigationItem.searchController = search;
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload)];
+    [self reload];
+}
+
+- (void)reload {
+    self.groups = [IFAdvancedDiagnostics injectionMap];
+    self.visibleGroups = self.groups;
+    [self.tableView reloadData];
+}
+
+- (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
+    NSString *query = searchController.searchBar.text.lowercaseString;
+    self.visibleGroups = query.length == 0 ? self.groups :
+        [self.groups filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(IFInjectionGroup *group,
+                                                                                       __unused NSDictionary *bindings) {
+        return [group.target.lowercaseString containsString:query] ||
+            [[[group.tweaks componentsJoinedByString:@" "] lowercaseString] containsString:query];
+    }]];
+    [self.tableView reloadData];
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return self.visibleGroups.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    IFInjectionGroup *group = self.visibleGroups[indexPath.row];
+    NSString *running = group.runningProcesses.count
+        ? [NSString stringWithFormat:IFAV(@"Running: %@", @"Запущено: %@"),
+           [group.runningProcesses componentsJoinedByString:@", "]]
+        : IFAV(@"No matching running process", @"Совпадающий процесс не запущен");
+    UITableViewCell *cell = IFAVCell(tableView, @"IFInjection", group.target,
+        [NSString stringWithFormat:@"%@\n%@", [group.tweaks componentsJoinedByString:@", "], running]);
+    cell.imageView.image = [UIImage systemImageNamed:group.runningProcesses.count ? @"bolt.fill" : @"bolt"];
+    cell.imageView.tintColor = group.runningProcesses.count ? UIColor.systemGreenColor : UIColor.secondaryLabelColor;
+    return cell;
+}
+
+@end
+
+@interface IFLaunchDaemonsViewController : UITableViewController <UISearchResultsUpdating>
+@property (nonatomic, copy) NSArray<IFLaunchDaemonRecord *> *records;
+@property (nonatomic, copy) NSArray<IFLaunchDaemonRecord *> *visibleRecords;
+@end
+
+@implementation IFLaunchDaemonsViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"LaunchDaemons";
+    UISearchController *search = [[UISearchController alloc] initWithSearchResultsController:nil];
+    search.searchResultsUpdater = self;
+    search.obscuresBackgroundDuringPresentation = NO;
+    self.navigationItem.searchController = search;
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload)];
+    [self reload];
+}
+
+- (void)reload {
+    self.records = [IFAdvancedDiagnostics launchDaemons];
+    self.visibleRecords = self.records;
+    [self.tableView reloadData];
+}
+
+- (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
+    NSString *query = searchController.searchBar.text.lowercaseString;
+    self.visibleRecords = query.length == 0 ? self.records :
+        [self.records filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(IFLaunchDaemonRecord *record,
+                                                                                        __unused NSDictionary *bindings) {
+        return [record.label.lowercaseString containsString:query] ||
+            [record.program.lowercaseString containsString:query];
+    }]];
+    [self.tableView reloadData];
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return self.visibleRecords.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    IFLaunchDaemonRecord *record = self.visibleRecords[indexPath.row];
+    NSString *state = record.isLoaded
+        ? [NSString stringWithFormat:IFAV(@"Loaded · PID %d", @"Загружен · PID %d"), record.pid]
+        : IFAV(@"Not running", @"Не запущен");
+    UITableViewCell *cell = IFAVCell(tableView, @"IFDaemon", record.label,
+        [NSString stringWithFormat:@"%@\n%@", state, record.program.length ? record.program : record.path]);
+    cell.imageView.image = [UIImage systemImageNamed:record.isLoaded ? @"checkmark.circle.fill" : @"circle"];
+    cell.imageView.tintColor = record.isLoaded ? UIColor.systemGreenColor : UIColor.secondaryLabelColor;
+    return cell;
+}
+
+@end
+
+@interface IFIntegrityViewController : UITableViewController
+@property (nonatomic, copy) NSArray<IFIntegrityIssue *> *issues;
+@end
+
+@implementation IFIntegrityViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = IFAV(@"Jailbreak integrity", @"Целостность jailbreak");
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(reload)];
+    [self reload];
+}
+
+- (void)reload {
+    self.navigationItem.rightBarButtonItem.enabled = NO;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSArray *issues = [IFAdvancedDiagnostics integrityIssues];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.issues = issues;
+            self.navigationItem.rightBarButtonItem.enabled = YES;
+            [self.tableView reloadData];
+        });
+    });
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return self.issues.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    IFIntegrityIssue *issue = self.issues[indexPath.row];
+    UITableViewCell *cell = IFAVCell(tableView, @"IFIntegrity", issue.title, issue.detail);
+    NSArray *symbols = @[@"checkmark.circle.fill", @"exclamationmark.triangle.fill", @"xmark.octagon.fill"];
+    NSArray *colors = @[UIColor.systemGreenColor, UIColor.systemOrangeColor, UIColor.systemRedColor];
+    cell.imageView.image = [UIImage systemImageNamed:symbols[issue.severity]];
+    cell.imageView.tintColor = colors[issue.severity];
+    return cell;
+}
+
+@end
+
+@interface IFSnapshotsViewController : UITableViewController
+@property (nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *snapshots;
+@end
+
+@implementation IFSnapshotsViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = IFAV(@"System snapshots", @"Снимки системы");
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(addSnapshot)];
+    [self reload];
+}
+
+- (void)reload {
+    self.snapshots = [IFAdvancedDiagnostics systemSnapshots];
+    self.navigationItem.leftBarButtonItem = self.snapshots.count >= 2
+        ? [[UIBarButtonItem alloc] initWithTitle:IFAV(@"Compare", @"Сравнить")
+                                          style:UIBarButtonItemStylePlain target:self action:@selector(compare)]
+        : nil;
+    UILabel *empty = [[UILabel alloc] init];
+    empty.text = IFAV(@"Create two snapshots to compare system changes.",
+                      @"Создайте два снимка, чтобы сравнить изменения системы.");
+    empty.textAlignment = NSTextAlignmentCenter;
+    empty.textColor = UIColor.secondaryLabelColor;
+    empty.numberOfLines = 0;
+    self.tableView.backgroundView = self.snapshots.count == 0 ? empty : nil;
+    [self.tableView reloadData];
+}
+
+- (void)addSnapshot {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:IFAV(@"New snapshot", @"Новый снимок")
+                                                                   message:IFAV(@"A list of processes, packages, tweaks and daemons will be saved.",
+                                                                               @"Будут сохранены процессы, пакеты, твики и демоны.")
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = IFAV(@"Name", @"Название");
+    }];
+    [alert addAction:[UIAlertAction actionWithTitle:IFAV(@"Cancel", @"Отмена")
+                                              style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:IFAV(@"Create", @"Создать")
+                                              style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        NSString *name = alert.textFields.firstObject.text ?: @"";
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            NSError *error = nil;
+            NSDictionary *snapshot = [IFAdvancedDiagnostics captureSystemSnapshotNamed:name error:&error];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (snapshot == nil) {
+                    IFAVShowMessage(self, @"iFetch", error.localizedDescription ?: IFAV(@"Could not create snapshot",
+                                                                                       @"Не удалось создать снимок"));
+                }
+                [self reload];
+            });
+        });
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)compare {
+    if (self.snapshots.count < 2) {
+        return;
+    }
+    NSDictionary *newer = self.snapshots[0];
+    NSDictionary *older = self.snapshots[1];
+    NSDictionary<NSString *, NSArray<NSString *> *> *difference =
+        [IFAdvancedDiagnostics compareSnapshot:older with:newer];
+    NSArray *sections = @[
+        @[@"processes", IFAV(@"Processes", @"Процессы")],
+        @[@"packages", IFAV(@"Packages", @"Пакеты")],
+        @[@"tweaks", IFAV(@"Tweaks", @"Твики")],
+        @[@"daemons", @"LaunchDaemons"]
+    ];
+    NSMutableString *text = [NSMutableString stringWithFormat:@"%@ → %@\n\n",
+                             older[@"name"] ?: older[@"createdAt"], newer[@"name"] ?: newer[@"createdAt"]];
+    for (NSArray *section in sections) {
+        NSArray *added = difference[[section[0] stringByAppendingString:@"Added"]];
+        NSArray *removed = difference[[section[0] stringByAppendingString:@"Removed"]];
+        [text appendFormat:@"%@\n+ %@\n− %@\n\n", section[1],
+         added.count ? [added componentsJoinedByString:@", "] : @"—",
+         removed.count ? [removed componentsJoinedByString:@", "] : @"—"];
+    }
+    UIViewController *controller = [[UIViewController alloc] init];
+    controller.title = IFAV(@"Changes", @"Изменения");
+    controller.view.backgroundColor = UIColor.systemBackgroundColor;
+    UITextView *textView = [[UITextView alloc] init];
+    textView.translatesAutoresizingMaskIntoConstraints = NO;
+    textView.editable = NO;
+    textView.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightRegular];
+    textView.text = text;
+    [controller.view addSubview:textView];
+    [NSLayoutConstraint activateConstraints:@[
+        [textView.leadingAnchor constraintEqualToAnchor:controller.view.leadingAnchor],
+        [textView.trailingAnchor constraintEqualToAnchor:controller.view.trailingAnchor],
+        [textView.topAnchor constraintEqualToAnchor:controller.view.safeAreaLayoutGuide.topAnchor],
+        [textView.bottomAnchor constraintEqualToAnchor:controller.view.bottomAnchor]
+    ]];
+    [self.navigationController pushViewController:controller animated:YES];
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return self.snapshots.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSDictionary *snapshot = self.snapshots[indexPath.row];
+    NSString *detail = [NSString stringWithFormat:@"%@ · %lu %@ · %lu %@",
+        snapshot[@"createdAt"] ?: @"",
+        (unsigned long)[snapshot[@"packages"] count], IFAV(@"packages", @"пакетов"),
+        (unsigned long)[snapshot[@"processes"] count], IFAV(@"processes", @"процессов")];
+    return IFAVCell(tableView, @"IFSnapshot", snapshot[@"name"] ?: snapshot[@"createdAt"], detail);
+}
+
+@end
+
+@interface IFDiagnosticModeViewController : UITableViewController
+@end
+
+@implementation IFDiagnosticModeViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = IFAV(@"Diagnostic mode", @"Режим диагностики");
+}
+
+- (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView {
+    return 2;
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return section == 0 ? 1 : 1;
+}
+
+- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    if (section != 1) {
+        return nil;
+    }
+    return IFAV(@"Third-party tweak dylibs are renamed safely. Critical injectors and iFetch are not changed. The original names are saved for one-tap restore.",
+                @"Dylib сторонних твиков безопасно переименовываются. Хук-инжекторы и iFetch не изменяются. Исходные имена сохраняются для восстановления.");
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    BOOL enabled = [IFAdvancedDiagnostics diagnosticModeEnabled];
+    if (indexPath.section == 0) {
+        return IFAVCell(tableView, @"IFDiagnosticState", IFAV(@"State", @"Состояние"),
+            enabled ? [NSString stringWithFormat:IFAV(@"Enabled · %lu tweaks disabled",
+                                                      @"Включён · отключено твиков: %lu"),
+                       (unsigned long)[IFAdvancedDiagnostics diagnosticModeDisabledCount]]
+                    : IFAV(@"Disabled", @"Выключен"));
+    }
+    UITableViewCell *cell = IFAVCell(tableView, @"IFDiagnosticAction",
+        enabled ? IFAV(@"Restore tweaks", @"Вернуть твики")
+                : IFAV(@"Disable third-party tweaks", @"Отключить сторонние твики"), @"");
+    cell.textLabel.textColor = enabled ? UIColor.systemBlueColor : UIColor.systemOrangeColor;
+    cell.textLabel.textAlignment = NSTextAlignmentCenter;
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.section != 1) {
+        return;
+    }
+    BOOL enabled = [IFAdvancedDiagnostics diagnosticModeEnabled];
+    NSString *message = enabled
+        ? IFAV(@"Restore every tweak changed by iFetch and Respring?",
+               @"Вернуть все изменённые iFetch твики и выполнить Respring?")
+        : IFAV(@"Temporarily disable third-party tweaks and Respring? You can restore them from this screen.",
+               @"Временно отключить сторонние твики и выполнить Respring? Их можно вернуть на этом экране.");
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:self.title message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:IFAV(@"Cancel", @"Отмена")
+                                              style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:IFAV(@"Continue", @"Продолжить")
+                                              style:enabled ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) {
+        NSError *error = nil;
+        BOOL success = enabled ? [IFAdvancedDiagnostics restoreDiagnosticModeWithError:&error]
+                               : [IFAdvancedDiagnostics enableDiagnosticModeWithError:&error];
+        if (!success) {
+            IFAVShowMessage(self, @"iFetch", error.localizedDescription ?: IFAV(@"Operation failed",
+                                                                                @"Операция не выполнена"));
+            return;
+        }
+        [self.tableView reloadData];
+        [self respring];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)respring {
+    NSArray<NSString *> *paths = @[@"/var/jb/usr/bin/sbreload", @"/var/jb/usr/bin/killall",
+                                   @"/usr/bin/sbreload", @"/usr/bin/killall"];
+    NSString *path = nil;
+    for (NSString *candidate in paths) {
+        if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) {
+            path = candidate;
+            break;
+        }
+    }
+    if (path.length == 0) {
+        IFAVShowMessage(self, @"iFetch", IFAV(@"Changes saved. Respring manually to apply them.",
+                                              @"Изменения сохранены. Выполните Respring вручную."));
+        return;
+    }
+    NSArray<NSString *> *arguments = [path.lastPathComponent isEqualToString:@"killall"]
+        ? @[@"killall", @"SpringBoard"] : @[@"sbreload"];
+    char *argv[3] = {0};
+    for (NSUInteger index = 0; index < arguments.count; index++) {
+        argv[index] = (char *)arguments[index].UTF8String;
+    }
+    pid_t pid = 0;
+    int result = posix_spawn(&pid, path.fileSystemRepresentation, NULL, NULL, argv, environ);
+    if (result != 0) {
+        IFAVShowMessage(self, @"iFetch", [NSString stringWithFormat:IFAV(@"Respring failed: %d",
+                                                                        @"Ошибка Respring: %d"), result]);
+    }
+}
+
+@end
+
+@interface IFPreferencesViewController : UITableViewController
+@end
+
+@implementation IFPreferencesViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = IFAV(@"Alerts and widgets", @"Уведомления и виджеты");
+}
+
+- (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView {
+    return 2;
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return section == 0 ? 1 : 4;
+}
+
+- (NSString *)tableView:(__unused UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    return section == 0 ? IFAV(@"System alerts", @"Системные уведомления")
+                        : IFAV(@"Widget appearance", @"Настройка виджетов");
+}
+
+- (NSString *)tableView:(__unused UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    return section == 0
+        ? IFAV(@"Alerts are generated during active iFetch monitoring for high memory, CPU, temperature and new crashes.",
+               @"Во время активного мониторинга iFetch сообщает о высокой загрузке ОЗУ, CPU, температуре и новых сбоях.")
+        : IFAV(@"Changes appear on the next WidgetKit refresh.", @"Изменения появятся при следующем обновлении WidgetKit.");
+}
+
+- (UITableViewCell *)segmentedCell:(UITableView *)tableView title:(NSString *)title
+                             items:(NSArray<NSString *> *)items selected:(NSInteger)selected tag:(NSInteger)tag {
+    UITableViewCell *cell = IFAVCell(tableView, [NSString stringWithFormat:@"IFPreference%ld", (long)tag], title, @"");
+    UISegmentedControl *control = [[UISegmentedControl alloc] initWithItems:items];
+    control.selectedSegmentIndex = selected;
+    control.tag = tag;
+    [control addTarget:self action:@selector(preferenceChanged:) forControlEvents:UIControlEventValueChanged];
+    cell.accessoryView = control;
+    return cell;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    if (indexPath.section == 0) {
+        UITableViewCell *cell = IFAVCell(tableView, @"IFAlerts", IFAV(@"Health alerts", @"Уведомления о состоянии"), @"");
+        UISwitch *toggle = [[UISwitch alloc] init];
+        toggle.on = [IFAdvancedDiagnostics alertsEnabled];
+        [toggle addTarget:self action:@selector(alertsChanged:) forControlEvents:UIControlEventValueChanged];
+        cell.accessoryView = toggle;
+        return cell;
+    }
+    if (indexPath.row == 0) {
+        NSArray *values = @[@"cyan", @"green", @"orange", @"purple"];
+        NSString *value = [defaults stringForKey:@"IFetchWidgetAccent"] ?: @"cyan";
+        return [self segmentedCell:tableView title:IFAV(@"Accent", @"Цвет")
+                             items:@[@"Cyan", @"Green", @"Orange", @"Purple"]
+                          selected:IFAVSelectedIndex(values, value, 0) tag:100];
+    }
+    if (indexPath.row == 1) {
+        NSArray *values = @[@"battery", @"memory", @"storage"];
+        NSString *value = [defaults stringForKey:@"IFetchWidgetPrimaryMetric"] ?: @"battery";
+        return [self segmentedCell:tableView title:IFAV(@"Main metric", @"Главный показатель")
+                             items:@[IFAV(@"Battery", @"Батарея"), @"RAM", IFAV(@"Storage", @"Диск")]
+                          selected:IFAVSelectedIndex(values, value, 0) tag:101];
+    }
+    if (indexPath.row == 2) {
+        NSInteger minutes = [defaults integerForKey:@"IFetchWidgetRefreshMinutes"];
+        NSArray *values = @[@5, @15, @30];
+        NSInteger selected = IFAVSelectedIndex(values, @(minutes > 0 ? minutes : 15), 1);
+        return [self segmentedCell:tableView title:IFAV(@"Refresh", @"Обновление")
+                             items:@[@"5m", @"15m", @"30m"] selected:selected tag:102];
+    }
+    NSArray *values = @[@"overview", @"diagnostics", @"advanced"];
+    NSString *value = [defaults stringForKey:@"IFetchWidgetDeepLink"] ?: @"diagnostics";
+    return [self segmentedCell:tableView title:IFAV(@"Tap opens", @"Открывать")
+                         items:@[IFAV(@"Overview", @"Сводка"), IFAV(@"Diagnostics", @"Диагностика"),
+                                 IFAV(@"Advanced", @"4.0")]
+                      selected:IFAVSelectedIndex(values, value, 1) tag:103];
+}
+
+- (void)alertsChanged:(UISwitch *)toggle {
+    BOOL requested = toggle.isOn;
+    toggle.enabled = NO;
+    [IFAdvancedDiagnostics setAlertsEnabled:requested completion:^(BOOL granted) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            toggle.on = granted;
+            toggle.enabled = YES;
+            if (requested && !granted) {
+                IFAVShowMessage(self, @"iFetch", IFAV(@"Notification permission was not granted.",
+                                                       @"Разрешение на уведомления не предоставлено."));
+            }
+        });
+    }];
+}
+
+- (void)preferenceChanged:(UISegmentedControl *)control {
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    if (control.tag == 100) {
+        [defaults setObject:@[@"cyan", @"green", @"orange", @"purple"][(NSUInteger)control.selectedSegmentIndex]
+                    forKey:@"IFetchWidgetAccent"];
+    } else if (control.tag == 101) {
+        [defaults setObject:@[@"battery", @"memory", @"storage"][(NSUInteger)control.selectedSegmentIndex]
+                    forKey:@"IFetchWidgetPrimaryMetric"];
+    } else if (control.tag == 102) {
+        [defaults setInteger:[@[@5, @15, @30][(NSUInteger)control.selectedSegmentIndex] integerValue]
+                      forKey:@"IFetchWidgetRefreshMinutes"];
+    } else if (control.tag == 103) {
+        [defaults setObject:@[@"overview", @"diagnostics", @"advanced"][(NSUInteger)control.selectedSegmentIndex]
+                    forKey:@"IFetchWidgetDeepLink"];
+    }
+    [defaults synchronize];
+}
+
+@end
+
+@implementation IFAdvancedMenuViewController
+
+- (instancetype)init {
+    return [super initWithStyle:UITableViewStyleInsetGrouped];
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"iFetch 4.0";
+}
+
+- (NSInteger)tableView:(__unused UITableView *)tableView numberOfRowsInSection:(__unused NSInteger)section {
+    return 6;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSArray *titles = @[
+        IFAV(@"System snapshots", @"Снимки системы"),
+        IFAV(@"Injection map", @"Карта инъекций"),
+        @"LaunchDaemons",
+        IFAV(@"Jailbreak integrity", @"Целостность jailbreak"),
+        IFAV(@"Diagnostic mode", @"Режим диагностики"),
+        IFAV(@"Alerts and widgets", @"Уведомления и виджеты")
+    ];
+    NSArray *details = @[
+        IFAV(@"Compare processes, packages, tweaks and daemons", @"Сравнение процессов, пакетов, твиков и демонов"),
+        IFAV(@"Tweak filters grouped by target process", @"Фильтры твиков по целевым процессам"),
+        IFAV(@"Bootstrap daemon state and executable paths", @"Состояние демонов и пути запуска"),
+        IFAV(@"Bootstrap files, packages, filters and symlinks", @"Файлы bootstrap, пакеты, фильтры и ссылки"),
+        IFAV(@"Temporarily disable and restore third-party tweaks", @"Временное отключение и возврат сторонних твиков"),
+        IFAV(@"Health warnings and widget appearance", @"Предупреждения и оформление виджетов")
+    ];
+    NSArray *symbols = @[@"square.stack.3d.up", @"point.3.connected.trianglepath.dotted",
+                         @"gearshape.2", @"checkmark.shield", @"stethoscope", @"slider.horizontal.3"];
+    UITableViewCell *cell = IFAVCell(tableView, @"IFAdvancedMenu", titles[indexPath.row], details[indexPath.row]);
+    cell.imageView.image = [UIImage systemImageNamed:symbols[indexPath.row]];
+    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    NSArray *classes = @[
+        [IFSnapshotsViewController class],
+        [IFInjectionMapViewController class],
+        [IFLaunchDaemonsViewController class],
+        [IFIntegrityViewController class],
+        [IFDiagnosticModeViewController class],
+        [IFPreferencesViewController class]
+    ];
+    UIViewController *controller = [[classes[indexPath.row] alloc] init];
+    [self.navigationController pushViewController:controller animated:YES];
+}
+
+@end

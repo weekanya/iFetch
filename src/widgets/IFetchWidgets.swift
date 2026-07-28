@@ -13,13 +13,54 @@ struct IFetchEntry: TimelineEntry {
     let topProcess: String
     let topMemory: String
     let russian: Bool
+    let accentName: String
+    let primaryMetric: String
+    let refreshMinutes: Int
+    let deepLink: String
+
+    var accent: Color {
+        switch accentName {
+        case "green":
+            return .green
+        case "orange":
+            return .orange
+        case "purple":
+            return .purple
+        default:
+            return Color(red: 0.31, green: 0.91, blue: 1)
+        }
+    }
+
+    var primaryValue: Double {
+        switch primaryMetric {
+        case "memory":
+            return memory
+        case "storage":
+            return storage
+        default:
+            return battery
+        }
+    }
+
+    var primaryTitle: String {
+        switch primaryMetric {
+        case "memory":
+            return "RAM"
+        case "storage":
+            return russian ? "ДИСК" : "DISK"
+        default:
+            return russian ? "ЗАРЯД" : "BATTERY"
+        }
+    }
 }
 
 struct IFetchProvider: TimelineProvider {
     func placeholder(in context: Context) -> IFetchEntry {
         IFetchEntry(date: Date(), battery: 82, memory: 61, storage: 48, uptime: "2d 7h",
                     device: "iPhone", system: "iOS 17", crashes: 0,
-                    topProcess: "SpringBoard", topMemory: "312 MB", russian: false)
+                    topProcess: "SpringBoard", topMemory: "312 MB", russian: false,
+                    accentName: "cyan", primaryMetric: "battery", refreshMinutes: 15,
+                    deepLink: "ifetch://diagnostics")
     }
 
     func getSnapshot(in context: Context, completion: @escaping (IFetchEntry) -> Void) {
@@ -28,7 +69,8 @@ struct IFetchProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<IFetchEntry>) -> Void) {
         let current = entry()
-        let refresh = Calendar.current.date(byAdding: .minute, value: 15, to: current.date) ?? current.date.addingTimeInterval(900)
+        let refresh = Calendar.current.date(byAdding: .minute, value: current.refreshMinutes, to: current.date)
+            ?? current.date.addingTimeInterval(TimeInterval(current.refreshMinutes * 60))
         completion(Timeline(entries: [current], policy: .after(refresh)))
     }
 
@@ -48,7 +90,11 @@ struct IFetchProvider: TimelineProvider {
             crashes: (values["crashes"] as? NSNumber)?.intValue ?? 0,
             topProcess: values["topProcess"] as? String ?? "",
             topMemory: values["topMemory"] as? String ?? "",
-            russian: (values["russian"] as? NSNumber)?.boolValue ?? false
+            russian: (values["russian"] as? NSNumber)?.boolValue ?? false,
+            accentName: values["accent"] as? String ?? "cyan",
+            primaryMetric: values["primaryMetric"] as? String ?? "battery",
+            refreshMinutes: max(5, (values["refreshMinutes"] as? NSNumber)?.intValue ?? 15),
+            deepLink: values["deepLink"] as? String ?? "ifetch://diagnostics"
         )
     }
 }
@@ -73,6 +119,7 @@ struct IFetchProgressBar: View {
 struct IFetchRing: View {
     let value: Double
     let color: Color
+    let label: String
 
     var body: some View {
         ZStack {
@@ -82,9 +129,14 @@ struct IFetchRing: View {
                 .trim(from: 0, to: CGFloat(min(100, max(0, value)) / 100))
                 .stroke(color, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Text(value >= 0 ? "\(Int(value.rounded()))%" : "—")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+            VStack(spacing: 0) {
+                Text(value >= 0 ? "\(Int(value.rounded()))%" : "—")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                Text(label)
+                    .font(.system(size: 6, weight: .bold))
+                    .opacity(0.58)
+            }
+            .foregroundColor(.white)
         }
     }
 }
@@ -96,7 +148,7 @@ struct IFetchHeader: View {
         HStack(spacing: 7) {
             Image(systemName: "waveform.path.ecg.rectangle.fill")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(Color(red: 0.31, green: 0.91, blue: 1))
+                .foregroundColor(entry.accent)
                 .frame(width: 27, height: 27)
                 .background(Color.white.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -145,12 +197,13 @@ struct IFetchSmallView: View {
         VStack(alignment: .leading, spacing: 9) {
             IFetchHeader(entry: entry)
             HStack(spacing: 10) {
-                IFetchRing(value: entry.battery, color: Color.green)
+                IFetchRing(value: entry.primaryValue, color: entry.accent, label: entry.primaryTitle)
                     .frame(width: 52, height: 52)
+                    .accessibilityLabel(entry.primaryTitle)
                 VStack(spacing: 9) {
                     IFetchMetricRow(name: "RAM", value: entry.memory, color: Color.purple)
                     IFetchMetricRow(name: entry.russian ? "ДИСК" : "DISK", value: entry.storage,
-                                    color: Color(red: 0.31, green: 0.91, blue: 1))
+                                    color: entry.accent)
                 }
             }
             HStack {
@@ -172,12 +225,13 @@ struct IFetchMediumView: View {
         VStack(spacing: 11) {
             IFetchHeader(entry: entry)
             HStack(spacing: 12) {
-                IFetchRing(value: entry.battery, color: Color.green)
+                IFetchRing(value: entry.primaryValue, color: entry.accent, label: entry.primaryTitle)
                     .frame(width: 65, height: 65)
+                    .accessibilityLabel(entry.primaryTitle)
                 VStack(spacing: 10) {
                     IFetchMetricRow(name: "RAM", value: entry.memory, color: Color.purple)
                     IFetchMetricRow(name: entry.russian ? "ХРАНИЛИЩЕ" : "STORAGE", value: entry.storage,
-                                    color: Color(red: 0.31, green: 0.91, blue: 1))
+                                    color: entry.accent)
                     HStack {
                         Label(entry.uptime, systemImage: "clock.fill")
                         Spacer()
@@ -199,12 +253,13 @@ struct IFetchLargeView: View {
         VStack(alignment: .leading, spacing: 15) {
             IFetchHeader(entry: entry)
             HStack(spacing: 18) {
-                IFetchRing(value: entry.battery, color: Color.green)
+                IFetchRing(value: entry.primaryValue, color: entry.accent, label: entry.primaryTitle)
                     .frame(width: 88, height: 88)
+                    .accessibilityLabel(entry.primaryTitle)
                 VStack(spacing: 13) {
                     IFetchMetricRow(name: "RAM", value: entry.memory, color: Color.purple)
                     IFetchMetricRow(name: entry.russian ? "ХРАНИЛИЩЕ" : "STORAGE", value: entry.storage,
-                                    color: Color(red: 0.31, green: 0.91, blue: 1))
+                                    color: entry.accent)
                 }
             }
             VStack(spacing: 0) {
@@ -228,7 +283,7 @@ struct IFetchLargeView: View {
     private func infoRow(_ name: String, _ value: String, _ icon: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundColor(Color(red: 0.31, green: 0.91, blue: 1))
+                .foregroundColor(entry.accent)
                 .frame(width: 18)
             Text(name)
                 .foregroundColor(.white.opacity(0.62))
@@ -265,7 +320,7 @@ struct IFetchWidgetEntryView: View {
                 IFetchLargeView(entry: entry)
             }
         }
-        .widgetURL(URL(string: "ifetch://diagnostics"))
+        .widgetURL(URL(string: entry.deepLink))
     }
 }
 

@@ -23,9 +23,10 @@ Center module, and the `ifetch` command for NewTerm and SSH.
 
 - live CPU, memory, storage, battery, temperature, and network monitoring;
 - process explorer with tweak details and confirmed process termination;
-- Wi-Fi, DNS, VPN, public IP, traffic speed, and latency information;
-- jailbreak environment, hook injector, installed tweaks, and crash reports;
-- small, medium, and large WidgetKit widgets;
+- per-process sockets, Wi-Fi, DNS, VPN, traffic speed, and latency information;
+- crash analysis, injection map, LaunchDaemons, and jailbreak integrity checks;
+- system snapshots, health alerts, and a reversible diagnostic mode;
+- customizable small, medium, and large WidgetKit widgets;
 - 2×2 CCSupport module for Control Center;
 - English and Russian interface.
 

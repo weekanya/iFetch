@@ -1,7 +1,9 @@
 #import "RootViewController.h"
 #import "../core/IFetchCore.h"
 #import "../core/IFDiagnostics.h"
+#import "../core/IFAdvancedDiagnostics.h"
 #import "DiagnosticsViewController.h"
+#import "IFAdvancedViewControllers.h"
 
 #import <spawn.h>
 #import <sys/wait.h>
@@ -27,6 +29,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
 @property (nonatomic, strong) IFProcessMonitor *processMonitor;
 @property (nonatomic, strong) IFNetworkMonitor *networkMonitor;
 @property (nonatomic, strong) IFNetworkSnapshot *networkSnapshot;
+@property (nonatomic, strong) IFLiveMetricsMonitor *alertMonitor;
 @property (nonatomic, copy) NSString *publicIPAddress;
 @property (nonatomic, strong) NSTimer *refreshTimer;
 @property (nonatomic, assign) NSUInteger refreshTick;
@@ -47,6 +50,7 @@ static NSString *IFT(NSString *english, NSString *russian) {
     self.jailbreak = [IFetchCore jailbreakInfo];
     self.processMonitor = [[IFProcessMonitor alloc] init];
     self.networkMonitor = [[IFNetworkMonitor alloc] init];
+    self.alertMonitor = [[IFLiveMetricsMonitor alloc] init];
     self.networkSnapshot = [self.networkMonitor refresh];
     self.publicIPAddress = IFT(@"Loading…", @"Загрузка…");
 
@@ -92,6 +96,20 @@ static NSString *IFT(NSString *english, NSString *russian) {
     [self.navigationController pushViewController:[[IFDiagnosticsViewController alloc] init] animated:YES];
 }
 
+- (void)openDeepLink:(NSURL *)url {
+    NSString *destination = url.host.lowercaseString;
+    [self.navigationController popToRootViewControllerAnimated:NO];
+    if ([destination isEqualToString:@"overview"]) {
+        self.selectedTab = IFTabOverview;
+        self.segmentedControl.selectedSegmentIndex = IFTabOverview;
+        [self.tableView reloadData];
+    } else if ([destination isEqualToString:@"advanced"]) {
+        [self.navigationController pushViewController:[[IFAdvancedMenuViewController alloc] init] animated:YES];
+    } else {
+        [self showDiagnostics];
+    }
+}
+
 - (void)setupHeader {
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 56)];
     self.segmentedControl = [[UISegmentedControl alloc] initWithItems:@[
@@ -124,6 +142,10 @@ static NSString *IFT(NSString *english, NSString *russian) {
     self.refreshTick++;
     if (self.refreshTick % 2 == 0) {
         [self.processMonitor refresh];
+    }
+    if (self.refreshTick % 15 == 0 && [IFAdvancedDiagnostics alertsEnabled]) {
+        [self.alertMonitor refresh];
+        [IFAdvancedDiagnostics evaluateAlertsWithMonitor:self.alertMonitor];
     }
     if (self.selectedTab == IFTabSystem) {
         [self.tableView reloadData];
