@@ -65,7 +65,21 @@ jobs:
         run: src/scripts/validate_project.sh
 
       - name: Build rootless package
-        run: make -C src clean package FINALPACKAGE=1
+        run: |
+          set -o pipefail
+          build_log="$RUNNER_TEMP/ifetch-build.log"
+
+          if make -C src clean package FINALPACKAGE=1 2>&1 | tee "$build_log"; then
+            exit 0
+          fi
+
+          grep -E 'error:|fatal error:|undefined symbol|ld: |make(\\[[0-9]+\\])?: \\*\\*\\*' "$build_log" |
+          tail -n 80 |
+          while IFS= read -r line; do
+            printf '::error::%s\n' "$line"
+          done
+
+          exit 1
 
       - name: Inspect and describe artifact
         id: package
