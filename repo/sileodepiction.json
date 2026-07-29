@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 5.0.0"
+          "title": "Version 5.0.1"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Application interface and lifecycle migrated to Swift\n- Control Center module migrated to Swift\n- New iOS 18-inspired visual system across the application\n- Fixed icon colors changing after language selection\n- Low-level diagnostics, CLI, widgets, and root helper preserved\n- Rootless-only support for iOS 14–17"
+          "markdown": "- Restored the missing Advanced Diagnostics icon\n- Added stable colored icons and a fallback for the diagnostics menu\n- Updated the Advanced Diagnostics title to use the current app version\n- Includes the Swift migration and iOS 18-inspired design from 5.0.0\n- Rootless-only support for iOS 14–17"
         }
       ],
       "class": "DepictionStackView"

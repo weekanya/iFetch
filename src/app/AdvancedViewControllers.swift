@@ -667,7 +667,7 @@ final class IFAdvancedMenuViewController: IFStyledTableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "iFetch 4.0"
+        title = "iFetch \(IFetchCore.versionString())"
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {

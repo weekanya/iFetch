@@ -994,7 +994,11 @@ final class IFDiagnosticsViewController: IFStyledTableViewController {
         ]
         let symbols = [
             "chart.xyaxis.line", "battery.100", "cpu", "doc.text.magnifyingglass",
-            "puzzlepiece.extension", "heart.text.square", "network", "waveform.badge.magnifyingglass"
+            "puzzlepiece.extension", "heart.text.square", "network", "gearshape.2.fill"
+        ]
+        let colors: [UIColor] = [
+            .systemBlue, .systemGreen, .systemOrange, .systemPurple,
+            .systemPink, .systemRed, .systemTeal, .systemIndigo
         ]
         let cell = IFValueCell(
             tableView,
@@ -1002,7 +1006,8 @@ final class IFDiagnosticsViewController: IFStyledTableViewController {
             title: titles[indexPath.row],
             detail: details[indexPath.row]
         )
-        cell.imageView?.image = UIImage(systemName: symbols[indexPath.row])
+        cell.imageView?.image = IFAppStyle.symbol(symbols[indexPath.row], color: colors[indexPath.row])
+            ?? IFAppStyle.symbol("circle.fill", color: colors[indexPath.row])
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
         return cell
