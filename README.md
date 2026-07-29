@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="repo/ifetch-banner.png" alt="iFetch" width="100%">
+  <img src="repo/assets/ifetch-banner.png" alt="iFetch" width="100%">
 </div>
 
 <div align="center">
@@ -16,8 +16,8 @@ a native Swift UIKit app, Home Screen widgets, a Control Center module, and the
 `ifetch` command for NewTerm and SSH.
 
 <div align="center">
-  <img src="assets/en1.png" alt="iFetch overview" width="48%">
-  <img src="assets/en2.png" alt="iFetch diagnostics" width="48%">
+  <img src="repo/assets/en1.png" alt="iFetch overview" width="48%">
+  <img src="repo/assets/en2.png" alt="iFetch diagnostics" width="48%">
 </div>
 
 ## Features

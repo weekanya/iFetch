@@ -64,7 +64,7 @@ jobs:
           set -euo pipefail
           version="$(sed -n 's/^Version: //p' src/control)"
           test "$version" = "$GITHUB_REF_NAME"
-          test -f "release-notes/${version}.md"
+          test -f "repo/release-notes/${version}.md"
           src/scripts/validate_project.sh
 
       - name: Build rootless package
@@ -123,7 +123,7 @@ jobs:
             "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_roothide_iphoneos-arm64e.deb.sha256" \
             --verify-tag \
             --title "iFetch ${GITHUB_REF_NAME}" \
-            --notes-file "release-notes/${GITHUB_REF_NAME}.md"
+            --notes-file "repo/release-notes/${GITHUB_REF_NAME}.md"
 
       - name: Publish Sileo repository
         env:

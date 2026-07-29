@@ -8,17 +8,17 @@
   "theme_color": "#061526",
   "icons": [
     {
-      "src": "CydiaIcon.png",
+      "src": "assets/CydiaIcon.png",
       "sizes": "64x64",
       "type": "image/png"
     },
     {
-      "src": "CydiaIcon@2x.png",
+      "src": "assets/CydiaIcon@2x.png",
       "sizes": "128x128",
       "type": "image/png"
     },
     {
-      "src": "CydiaIcon@3x.png",
+      "src": "assets/CydiaIcon@3x.png",
       "sizes": "192x192",
       "type": "image/png"
     }

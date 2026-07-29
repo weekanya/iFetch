@@ -7,5 +7,5 @@ Description: Advanced system diagnostics, process monitor and CLI fetch for root
 Maintainer: wee1ka
 Author: wee1ka
 Section: Tweaks
-Icon: https://weekanya.github.io/iFetch/ifetch-icon.png
+Icon: https://weekanya.github.io/iFetch/assets/ifetch-icon.png
 SileoDepiction: https://weekanya.github.io/iFetch/sileodepiction.json
