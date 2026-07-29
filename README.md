@@ -11,7 +11,7 @@
 [![Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
 
 iFetch is a system diagnostics app for iPhones running a rootless jailbreak on
-iOS 14–17. It includes a native UIKit app, Home Screen widgets, a Control
+iOS 14–17. It includes a native Swift UIKit app, Home Screen widgets, a Control
 Center module, and the `ifetch` command for NewTerm and SSH.
 
 <div align="center">
@@ -22,6 +22,7 @@ Center module, and the `ifetch` command for NewTerm and SSH.
 ## Features
 
 - live CPU, memory, storage, battery, temperature, and network monitoring;
+- Swift interface with an iOS 18-inspired visual style;
 - process explorer with tweak details and confirmed process termination;
 - per-process sockets, Wi-Fi, DNS, VPN, traffic speed, and latency information;
 - crash analysis, injection map, LaunchDaemons, and jailbreak integrity checks;

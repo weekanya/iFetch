@@ -11,7 +11,7 @@
 [![Сборка rootless-артефакта](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
 
 iFetch — приложение для диагностики iPhone с rootless-джейлбрейком на iOS
-14–17. В комплект входят приложение на UIKit, виджеты домашнего экрана, модуль
+14–17. В комплект входят приложение на Swift и UIKit, виджеты домашнего экрана, модуль
 Control Center и команда `ifetch` для NewTerm и SSH.
 
 <div align="center">
@@ -22,6 +22,7 @@ Control Center и команда `ifetch` для NewTerm и SSH.
 ## Возможности
 
 - мониторинг CPU, ОЗУ, хранилища, батареи, температуры и сети;
+- интерфейс на Swift с визуальным стилем, вдохновлённым iOS 18;
 - диспетчер процессов с информацией о твиках и завершением процесса;
 - сокеты процессов, Wi-Fi, DNS, VPN, скорость сети и задержка;
 - анализ сбоев, карта инъекций, LaunchDaemons и проверка jailbreak;
