@@ -14,7 +14,8 @@ APPEX_NAME = IFetchWidgets
 
 IFetch_FILES = \
 	app/main.m \
-	app/AppDelegate.m \
+	app/AppDelegate.swift \
+	app/IFAppRoute.swift \
 	app/IFWidgetRefreshBridge.swift \
 	app/RootViewController.m \
 	app/DiagnosticsViewController.m \
@@ -26,6 +27,7 @@ IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkE
 IFetch_RESOURCE_DIRS = resources
 IFetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 IFetch_CFLAGS = -fobjc-arc
+IFetch_SWIFT_BRIDGING_HEADER = app/IFetch-Bridging-Header.h
 
 ifetch_FILES = \
 	cli/main.m \
