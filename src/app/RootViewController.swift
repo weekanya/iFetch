@@ -491,11 +491,15 @@ final class RootViewController: UITableViewController {
     private func showLanguagePicker() {
         let alert = UIAlertController(title: IFL("Language", "Язык"), message: nil, preferredStyle: .actionSheet)
         alert.addAction(UIAlertAction(title: "English", style: .default) { [weak self] _ in
-            IFLanguageManager.setCurrentLanguage(IFLanguage(rawValue: 0))
+            if let language = IFLanguage(rawValue: 0) {
+                IFLanguageManager.setCurrentLanguage(language)
+            }
             self?.applySelectedLanguage()
         })
         alert.addAction(UIAlertAction(title: "Русский", style: .default) { [weak self] _ in
-            IFLanguageManager.setCurrentLanguage(IFLanguage(rawValue: 1))
+            if let language = IFLanguage(rawValue: 1) {
+                IFLanguageManager.setCurrentLanguage(language)
+            }
             self?.applySelectedLanguage()
         })
         alert.addAction(UIAlertAction(title: IFL("Cancel", "Отмена"), style: .cancel))
