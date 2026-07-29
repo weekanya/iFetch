@@ -8,7 +8,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Native diagnostics, rebuilt in Swift\n\niFetch 5.0 moves the complete application interface and Control Center dashboard to Swift, adds a refreshed iOS 18-inspired design, and keeps the low-level jailbreak engine native."
+          "markdown": "### Native diagnostics for rootless and RootHide\n\niFetch 5.1 adds a dedicated RootHide package while retaining conventional rootless support on iOS 14–17."
         },
         {
           "class": "DepictionSeparatorView"
@@ -19,7 +19,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Swift application lifecycle, navigation, diagnostics, tools, and settings\n- Swift Control Center dashboard with live CPU, memory, temperature, and traffic\n- Modern materials, typography, cards, charts, and stable colored SF Symbols\n- Process control, crash analysis, network details, snapshots, and jailbreak health\n- Dark WidgetKit widgets with automatic and manual refresh\n- Rootless-safe native core and privileged helper\n- Full terminal client for NewTerm and SSH"
+          "markdown": "- Swift application and Control Center dashboard\n- Live CPU, memory, temperature, traffic, and process monitoring\n- Crash analysis, network details, snapshots, and Jailbreak Health\n- Dark WidgetKit widgets with automatic and manual refresh\n- Runtime RootHide jbroot path resolution\n- Packages for iphoneos-arm64 and iphoneos-arm64e\n- Full terminal client for NewTerm and SSH"
         }
       ],
       "class": "DepictionStackView"
@@ -29,7 +29,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Нативная диагностика, переписанная на Swift\n\niFetch 5.0 переносит весь интерфейс приложения и панель Control Center на Swift, добавляет обновлённый дизайн в стиле iOS 18 и сохраняет низкоуровневое jailbreak-ядро нативным."
+          "markdown": "### Нативная диагностика для rootless и RootHide\n\niFetch 5.1 добавляет отдельный пакет для RootHide и сохраняет поддержку обычных rootless-джейлбрейков на iOS 14–17."
         },
         {
           "class": "DepictionHeaderView",
@@ -37,7 +37,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Жизненный цикл, навигация, диагностика, инструменты и настройки на Swift\n- Панель Control Center на Swift с живыми данными CPU, ОЗУ, температуры и сети\n- Современные материалы, типографика, карточки, графики и стабильные цвета SF Symbols\n- Управление процессами, анализ сбоев, сетевые детали, снимки и Jailbreak Health\n- Тёмные виджеты WidgetKit с автоматическим и ручным обновлением\n- Безопасное rootless-ядро и привилегированный helper\n- Полноценный терминальный клиент для NewTerm и SSH"
+          "markdown": "- Приложение и панель Control Center на Swift\n- Живой мониторинг CPU, ОЗУ, температуры, сети и процессов\n- Анализ сбоев, сетевые детали, снимки и Jailbreak Health\n- Тёмные виджеты WidgetKit с автообновлением\n- Определение случайного пути jbroot во время работы\n- Пакеты для iphoneos-arm64 и iphoneos-arm64e\n- Полноценный терминальный клиент для NewTerm и SSH"
         }
       ],
       "class": "DepictionStackView"
@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 5.0.1"
+          "title": "Version 5.1.0"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Restored the missing Advanced Diagnostics icon\n- Added stable colored icons and a fallback for the diagnostics menu\n- Updated the Advanced Diagnostics title to use the current app version\n- Includes the Swift migration and iOS 18-inspired design from 5.0.0\n- Rootless-only support for iOS 14–17"
+          "markdown": "- Added a dedicated RootHide build\n- Added runtime jbroot resolution across the app, CLI, helper, and Control Center\n- Added the application container entitlements required by RootHide\n- Updated GitHub Actions and the Sileo repository for both package architectures\n- Retained conventional rootless support on iOS 14–17"
         }
       ],
       "class": "DepictionStackView"

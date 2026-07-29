@@ -8,11 +8,12 @@
 
 # iFetch
 
-[![Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+[![Build Packages](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
 
-iFetch is a system diagnostics app for iPhones running a rootless jailbreak on
-iOS 14–17. It includes a native Swift UIKit app, Home Screen widgets, a Control
-Center module, and the `ifetch` command for NewTerm and SSH.
+iFetch is a system diagnostics app for jailbroken iPhones on iOS 14–17. It
+supports conventional rootless environments and RootHide. The package includes
+a native Swift UIKit app, Home Screen widgets, a Control Center module, and the
+`ifetch` command for NewTerm and SSH.
 
 <div align="center">
   <img src="assets/en1.png" alt="iFetch overview" width="48%">
@@ -29,7 +30,7 @@ Center module, and the `ifetch` command for NewTerm and SSH.
 - system snapshots, health notifications, and a reversible diagnostic mode;
 - dark small, medium, and large WidgetKit widgets with automatic refresh;
 - live 3×2 CCSupport dashboard for Control Center;
-- manual widget cache refresh and rootless-safe privileged operations;
+- manual widget cache refresh and jailbreak-safe privileged operations;
 - English and Russian interface.
 
 ## Install
@@ -40,8 +41,8 @@ Add the repository to Sileo and install **iFetch**:
 https://weekanya.github.io/iFetch/
 ```
 
-Only rootless jailbreaks are supported. The package architecture is
-`iphoneos-arm64`, with iOS 14.0 as the minimum deployment target.
+Sileo selects `iphoneos-arm64` for conventional rootless jailbreaks or
+`iphoneos-arm64e` for RootHide. The minimum deployment target is iOS 14.0.
 
 ## Terminal
 
@@ -58,15 +59,22 @@ ifetch --lang ru
 
 ## Build
 
-Local builds require Theos, Swift 5.8, and the iOS 16.5 SDK or newer:
+Conventional rootless builds require Theos, Swift 5.8, and the iOS 16.5 SDK or
+newer:
 
 ```sh
 make -C src clean package FINALPACKAGE=1
 ```
 
+RootHide builds require the official RootHide Theos fork:
+
+```sh
+THEOS=/path/to/roothide/theos make -C src clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+```
+
 Alternatively, use
-[Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
-to build the project directly on GitHub.
+[Build Packages](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+to build both packages directly on GitHub.
 
 ## Privacy
 

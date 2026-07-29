@@ -8,6 +8,10 @@
     <!-- Отключает ограничения песочницы -->
     <key>com.apple.private.security.no-sandbox</key>
     <true/>
+    <key>com.apple.private.security.storage.AppBundles</key>
+    <true/>
+    <key>com.apple.private.security.storage.AppDataContainers</key>
+    <true/>
     <key>com.apple.private.security.no-container</key>
     <true/>
     <key>com.apple.private.security.sandbox</key>

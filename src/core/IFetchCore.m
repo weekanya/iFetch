@@ -1,4 +1,5 @@
 #import "IFetchCore.h"
+#import "IFJailbreakPaths.h"
 #import "IFVersion.h"
 
 #import <arpa/inet.h>
@@ -123,7 +124,7 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
         };
         NSArray<NSString *> *paths = @[
             [[NSBundle mainBundle] pathForResource:@"device_catalog" ofType:@"json"] ?: @"",
-            @"/var/jb/Applications/IFetch.app/device_catalog.json",
+            IFBootstrapPath(@"/Applications/IFetch.app/device_catalog.json"),
             @"/Applications/IFetch.app/device_catalog.json"
         ];
         NSDictionary *loaded = nil;
@@ -516,10 +517,7 @@ static NSArray<NSString *> *IFDNSServers(void) {
 @end
 
 static NSString *IFRootPrefix(void) {
-    if ([[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"]) {
-        return @"/var/jb";
-    }
-    return @"";
+    return IFBootstrapRootPath();
 }
 
 static NSArray<NSDictionary<NSString *, NSString *> *> *IFInstalledPackageRecords(NSString *rootPrefix) {
@@ -720,7 +718,9 @@ static NSInteger IFRecentCrashCount(void) {
     info.activeTweakCount = IFActiveTweakCount(info.rootPrefix);
     info.recentCrashCount = IFRecentCrashCount();
 
-    if (info.rootPrefix.length > 0) {
+    if (IFRootHideRuntime()) {
+        info.environmentName = @"RootHide";
+    } else if (info.rootPrefix.length > 0) {
         info.environmentName = @"Rootless";
     } else if ([[NSFileManager defaultManager] fileExistsAtPath:@"/.procursus_strapped"]) {
         info.environmentName = @"Procursus / Rootful";

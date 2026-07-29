@@ -44,8 +44,18 @@ if [[ "${image_count}" -lt 33 ]]; then
     exit 1
 fi
 
-package="../packages/com.wee1ka.ifetch_${package_version}_iphoneos-arm64.deb"
-if [[ -f "${package}" ]]; then
+for architecture in iphoneos-arm64 iphoneos-arm64e; do
+    package="../packages/com.wee1ka.ifetch_${package_version}_${architecture}.deb"
+    if [[ ! -f "${package}" ]]; then
+        continue
+    fi
+
+    package_architecture="$(dpkg-deb -f "${package}" Architecture)"
+    if [[ "${package_architecture}" != "${architecture}" ]]; then
+        echo "Unexpected package architecture: ${package_architecture}, expected ${architecture}" >&2
+        exit 1
+    fi
+
     listing="$(dpkg-deb -c "${package}")"
     if ! grep -q 'IFetch.app/IFetch' <<<"${listing}"; then
         echo "Application binary is missing from package" >&2
@@ -71,6 +81,6 @@ if [[ -f "${package}" ]]; then
         echo "WidgetKit extension is missing from package" >&2
         exit 1
     fi
-fi
+done
 
 echo "iFetch project validation passed"

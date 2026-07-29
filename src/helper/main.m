@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 
+#import "../core/IFJailbreakPaths.h"
+
 #import <arpa/inet.h>
 #import <dlfcn.h>
 #import <netinet/in.h>
@@ -136,7 +138,7 @@ typedef int (*IFHProcNameFn)(int, void *, uint32_t);
 typedef int (*IFHProcListPidsFn)(uint32_t, uint32_t, void *, int);
 
 static NSString *IFHStateDirectory(void) {
-    return @"/var/jb/var/lib/ifetch";
+    return IFBootstrapPath(@"/var/lib/ifetch");
 }
 
 static NSString *IFHStatePath(void) {
@@ -144,7 +146,7 @@ static NSString *IFHStatePath(void) {
 }
 
 static NSString *IFHTweakDirectory(void) {
-    return @"/var/jb/usr/lib/TweakInject";
+    return IFBootstrapPath(@"/usr/lib/TweakInject");
 }
 
 static void IFHPrintJSON(id object) {

@@ -1,4 +1,4 @@
-name: Build Rootless Artifact
+name: Build Rootless and RootHide Artifacts
 run-name: "iFetch artifact · ${{ github.ref_name }} · #${{ github.run_number }}"
 
 on:
@@ -23,10 +23,12 @@ concurrency:
 jobs:
   build:
     runs-on: macos-14
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       THEOS: ${{ github.workspace }}/.build-tools/theos
       THEOS_COMMIT: 16362d3aa83a0acd56df4493d575d34306d42478
+      ROOTHIDE_THEOS: ${{ github.workspace }}/.build-tools/roothide-theos
+      ROOTHIDE_THEOS_COMMIT: 88506b2c22e9e07dd4ed055f23c9e398a117a2c7
 
     steps:
       - name: Checkout source
@@ -44,8 +46,9 @@ jobs:
         with:
           path: |
             ${{ env.THEOS }}
+            ${{ env.ROOTHIDE_THEOS }}
             /Users/runner/Library/Caches/Homebrew
-          key: ifetch-build-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.THEOS_COMMIT }}-v1
+          key: ifetch-build-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.THEOS_COMMIT }}-${{ env.ROOTHIDE_THEOS_COMMIT }}-v2
 
       - name: Install build tools
         run: |
@@ -55,6 +58,12 @@ jobs:
             git clone --recursive https://github.com/theos/theos.git "$THEOS"
             git -C "$THEOS" checkout "$THEOS_COMMIT"
             git -C "$THEOS" submodule update --init --recursive
+          fi
+
+          if [[ ! -d "$ROOTHIDE_THEOS/.git" ]]; then
+            git clone --recursive https://github.com/roothide/theos.git "$ROOTHIDE_THEOS"
+            git -C "$ROOTHIDE_THEOS" checkout "$ROOTHIDE_THEOS_COMMIT"
+            git -C "$ROOTHIDE_THEOS" submodule update --init --recursive
           fi
 
           for formula in ldid dpkg xz; do
@@ -67,7 +76,7 @@ jobs:
       - name: Build rootless package
         run: |
           set -o pipefail
-          build_log="$RUNNER_TEMP/ifetch-build.log"
+          build_log="$RUNNER_TEMP/ifetch-rootless-build.log"
 
           if make -C src clean package FINALPACKAGE=1 2>&1 | tee "$build_log"; then
             exit 0
@@ -81,7 +90,24 @@ jobs:
 
           exit 1
 
-      - name: Inspect and describe artifact
+      - name: Build RootHide package
+        run: |
+          set -o pipefail
+          build_log="$RUNNER_TEMP/ifetch-roothide-build.log"
+
+          if THEOS="$ROOTHIDE_THEOS" make -C src clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide 2>&1 | tee "$build_log"; then
+            exit 0
+          fi
+
+          grep -E 'error:|fatal error:|undefined symbol|ld: |make(\\[[0-9]+\\])?: \\*\\*\\*' "$build_log" |
+          tail -n 80 |
+          while IFS= read -r line; do
+            printf '::error::%s\n' "$line"
+          done
+
+          exit 1
+
+      - name: Inspect and describe artifacts
         id: package
         env:
           TOOLS_CACHE_HIT: ${{ steps.tools-cache.outputs.cache-hit }}
@@ -89,54 +115,61 @@ jobs:
           set -euo pipefail
 
           version="$(sed -n 's/^Version: //p' src/control)"
-          package="packages/com.wee1ka.ifetch_${version}_iphoneos-arm64.deb"
-          package_name="$(basename "$package")"
+          rootless_package="packages/com.wee1ka.ifetch_${version}_iphoneos-arm64.deb"
+          roothide_package="packages/com.wee1ka.ifetch_${version}_iphoneos-arm64e.deb"
+          rootless_name="$(basename "$rootless_package")"
+          roothide_name="$(basename "$roothide_package")"
 
-          test -f "$package"
+          test -f "$rootless_package"
+          test -f "$roothide_package"
+          test "$(dpkg-deb -f "$rootless_package" Architecture)" = "iphoneos-arm64"
+          test "$(dpkg-deb -f "$roothide_package" Architecture)" = "iphoneos-arm64e"
 
-          invalid_paths="$(
-            dpkg-deb -c "$package" |
+          rootless_invalid="$(
+            dpkg-deb -c "$rootless_package" |
             awk '{print $6}' |
             sed 's#^\./##' |
             grep -Ev '^(|var/?|var/jb(/|$))' || true
           )"
+          roothide_invalid="$(
+            dpkg-deb -c "$roothide_package" |
+            awk '{print $6}' |
+            sed 's#^\./##' |
+            grep -Ev '^(|Applications(/|$)|Library(/|$)|usr(/|$)|var(/|$))' || true
+          )"
 
-          if [[ -n "$invalid_paths" ]]; then
-            printf '%s\n' "$invalid_paths"
-            exit 1
-          fi
-
+          test -z "$rootless_invalid"
+          test -z "$roothide_invalid"
           src/scripts/validate_project.sh
 
           mkdir -p artifact
-          cp "$package" "artifact/$package_name"
-          dpkg-deb -I "$package" > artifact/PACKAGE_CONTROL.txt
-          dpkg-deb -c "$package" > artifact/PACKAGE_CONTENTS.txt
+          cp "$rootless_package" "$roothide_package" artifact/
+          dpkg-deb -I "$rootless_package" > artifact/ROOTLESS_PACKAGE_CONTROL.txt
+          dpkg-deb -c "$rootless_package" > artifact/ROOTLESS_PACKAGE_CONTENTS.txt
+          dpkg-deb -I "$roothide_package" > artifact/ROOTHIDE_PACKAGE_CONTROL.txt
+          dpkg-deb -c "$roothide_package" > artifact/ROOTHIDE_PACKAGE_CONTENTS.txt
 
           (
             cd artifact
-            shasum -a 256 "$package_name" > "$package_name.sha256"
+            shasum -a 256 "$rootless_name" > "$rootless_name.sha256"
+            shasum -a 256 "$roothide_name" > "$roothide_name.sha256"
           )
 
           sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
           xcode_version="$(xcodebuild -version | tr '\n' ' ')"
-          sha256="$(shasum -a 256 "$package" | awk '{print $1}')"
+          rootless_sha256="$(shasum -a 256 "$rootless_package" | awk '{print $1}')"
+          roothide_sha256="$(shasum -a 256 "$roothide_package" | awk '{print $1}')"
           generated_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
           cat > artifact/BUILD_INFO.md <<EOF
-          # iFetch ${version} rootless build
+          # iFetch ${version} development build
 
-          This is an automated development artifact built from the repository source. It is not a GitHub Release and is not published to the Sileo repository.
+          This automated artifact contains conventional rootless and RootHide packages. It is not a GitHub Release and is not published to the Sileo repository.
 
-          ## Package
+          ## Packages
 
-          - File: \`${package_name}\`
-          - Version: \`${version}\`
-          - Architecture: \`iphoneos-arm64\`
-          - Package scheme: \`rootless\`
-          - Minimum deployment target: \`iOS 14.0\`
-          - Install prefix: \`/var/jb\`
-          - SHA-256: \`${sha256}\`
+          - \`${rootless_name}\`: \`iphoneos-arm64\`, rootless, \`/var/jb\`, SHA-256 \`${rootless_sha256}\`
+          - \`${roothide_name}\`: \`iphoneos-arm64e\`, RootHide, randomized jailbreak root, SHA-256 \`${roothide_sha256}\`
 
           ## Included components
 
@@ -144,7 +177,7 @@ jobs:
           - WidgetKit extension
           - Control Center module
           - Terminal command \`ifetch\`
-          - Restricted privileged helper for socket inspection, diagnostic mode, and widget refresh
+          - Restricted privileged helper
           - Device images and localized resources
 
           ## Build information
@@ -157,24 +190,15 @@ jobs:
           - Xcode: \`${xcode_version}\`
           - iPhoneOS SDK: \`${sdk_version}\`
           - Generated: \`${generated_at}\`
-
-          ## Additional files
-
-          - \`${package_name}.sha256\` verifies the downloaded package
-          - \`PACKAGE_CONTROL.txt\` contains Debian package metadata
-          - \`PACKAGE_CONTENTS.txt\` lists every installed file
-
-          Download the artifact, extract it, verify the SHA-256 file, and install the \`.deb\` through Sileo, Zebra, Filza, or \`dpkg\`.
           EOF
 
           cat artifact/BUILD_INFO.md >> "$GITHUB_STEP_SUMMARY"
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
-          printf 'package_name=%s\n' "$package_name" >> "$GITHUB_OUTPUT"
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: iFetch-${{ steps.package.outputs.version }}-rootless-build-${{ github.run_number }}
+          name: iFetch-${{ steps.package.outputs.version }}-rootless-roothide-build-${{ github.run_number }}
           path: artifact/
           if-no-files-found: error
           retention-days: 30

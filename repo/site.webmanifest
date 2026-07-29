@@ -1,7 +1,7 @@
 {
   "name": "weekanya Repository",
   "short_name": "weekanya",
-  "description": "Rootless diagnostics and system utilities for iOS 14–17",
+  "description": "Rootless and RootHide diagnostics and system utilities for iOS 14–17",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#04101d",

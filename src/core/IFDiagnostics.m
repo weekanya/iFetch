@@ -1,4 +1,5 @@
 #import "IFDiagnostics.h"
+#import "IFJailbreakPaths.h"
 
 #import <SystemConfiguration/CaptiveNetwork.h>
 #import <NetworkExtension/NetworkExtension.h>
@@ -267,7 +268,7 @@ static NSDictionary *IFBatteryRegistryProperties(void) {
 }
 
 static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFPackageRecords(void) {
-    NSString *root = [[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"] ? @"/var/jb" : @"";
+    NSString *root = IFBootstrapRootPath();
     NSString *statusPath = [root stringByAppendingString:@"/Library/dpkg/status"];
     NSString *contents = [NSString stringWithContentsOfFile:statusPath encoding:NSUTF8StringEncoding error:nil];
     NSMutableDictionary *records = [NSMutableDictionary dictionary];
@@ -467,7 +468,7 @@ static double IFSystemCPUPercent(void) {
 }
 
 + (NSArray<IFTweakRecord *> *)installedTweaks {
-    NSString *root = [[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"] ? @"/var/jb" : @"";
+    NSString *root = IFBootstrapRootPath();
     NSDictionary *packages = IFPackageRecords();
     NSDictionary *dylibPackages = IFDylibPackageMap(root);
     NSArray *directories = @[
@@ -524,10 +525,14 @@ static double IFSystemCPUPercent(void) {
         [items addObject:item];
     };
 
-    BOOL rootless = [jailbreak.rootPrefix isEqualToString:@"/var/jb"];
-    add(@"bootstrap", IFD(@"Rootless bootstrap", @"Rootless bootstrap"),
-        rootless ? IFD(@"Available at /var/jb", @"Доступен в /var/jb") : IFD(@"Not detected", @"Не обнаружен"),
-        rootless ? IFHealthStateGood : IFHealthStateProblem);
+    BOOL bootstrap = jailbreak.rootPrefix.length > 0;
+    NSString *bootstrapName = IFRootHideRuntime() ? @"RootHide bootstrap" : @"Rootless bootstrap";
+    NSString *bootstrapDetail = IFRootHideRuntime()
+        ? IFD(@"Available through randomized jbroot", @"Доступен через случайный jbroot")
+        : bootstrap ? IFD(@"Available at /var/jb", @"Доступен в /var/jb")
+                    : IFD(@"Not detected", @"Не обнаружен");
+    add(@"bootstrap", bootstrapName, bootstrapDetail,
+        bootstrap ? IFHealthStateGood : IFHealthStateProblem);
 
     BOOL injector = ![jailbreak.injectorDescription containsString:IFD(@"Not detected", @"Не обнаружен")];
     add(@"injector", IFD(@"Hook injection", @"Инъекция твиков"), jailbreak.injectorDescription,

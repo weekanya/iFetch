@@ -1,6 +1,7 @@
 #import "IFSystemActions.h"
 
 #import "IFetchCore.h"
+#import "IFJailbreakPaths.h"
 
 #import <errno.h>
 #import <signal.h>
@@ -21,8 +22,8 @@ static NSError *IFActionError(NSInteger code, NSString *message) {
 
 + (NSArray<NSString *> *)pathsForCommand:(NSString *)command {
     return @[
-        [@"/var/jb/usr/bin" stringByAppendingPathComponent:command],
-        [@"/var/jb/usr/sbin" stringByAppendingPathComponent:command],
+        [IFBootstrapPath(@"/usr/bin") stringByAppendingPathComponent:command],
+        [IFBootstrapPath(@"/usr/sbin") stringByAppendingPathComponent:command],
         [@"/usr/bin" stringByAppendingPathComponent:command],
         [@"/usr/sbin" stringByAppendingPathComponent:command],
         [@"/bin" stringByAppendingPathComponent:command],

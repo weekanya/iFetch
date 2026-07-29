@@ -72,7 +72,7 @@ jobs:
           fi
 
           gh release download "$TAG" \
-            --pattern '*_iphoneos-arm64.deb' \
+            --pattern '*_iphoneos-arm64*.deb' \
             --dir _site/debs
 
           cd _site

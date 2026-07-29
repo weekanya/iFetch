@@ -8,11 +8,12 @@
 
 # iFetch
 
-[![Сборка rootless-артефакта](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
+[![Сборка пакетов](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml/badge.svg)](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml)
 
-iFetch — приложение для диагностики iPhone с rootless-джейлбрейком на iOS
-14–17. В комплект входят приложение на Swift и UIKit, виджеты домашнего экрана, модуль
-Control Center и команда `ifetch` для NewTerm и SSH.
+iFetch — приложение для диагностики iPhone с джейлбрейком на iOS 14–17.
+Поддерживаются обычные rootless-окружения и RootHide. В комплект входят
+приложение на Swift и UIKit, виджеты домашнего экрана, модуль Control Center и
+команда `ifetch` для NewTerm и SSH.
 
 <div align="center">
   <img src="assets/ru1.png" alt="Главный экран iFetch" width="48%">
@@ -29,7 +30,7 @@ Control Center и команда `ifetch` для NewTerm и SSH.
 - снимки системы, уведомления и обратимый режим диагностики;
 - тёмные виджеты WidgetKit малого, среднего и большого размера с автообновлением;
 - живая панель CCSupport 3×2 для Control Center;
-- ручной сброс кэша виджетов и безопасные rootless-операции;
+- ручной сброс кэша виджетов и безопасные привилегированные операции;
 - английский и русский интерфейс.
 
 ## Установка
@@ -40,8 +41,8 @@ Control Center и команда `ifetch` для NewTerm и SSH.
 https://weekanya.github.io/iFetch/
 ```
 
-Поддерживается только rootless-джейлбрейк. Архитектура пакета —
-`iphoneos-arm64`, минимальная версия системы — iOS 14.0.
+Sileo выбирает `iphoneos-arm64` для обычного rootless-джейлбрейка или
+`iphoneos-arm64e` для RootHide. Минимальная версия системы — iOS 14.0.
 
 ## Терминал
 
@@ -58,15 +59,21 @@ ifetch --lang ru
 
 ## Сборка
 
-Для локальной сборки нужны Theos, Swift 5.8 и iOS SDK 16.5 или новее:
+Для обычной rootless-сборки нужны Theos, Swift 5.8 и iOS SDK 16.5 или новее:
 
 ```sh
 make -C src clean package FINALPACKAGE=1
 ```
 
+Для RootHide нужен официальный форк Theos от RootHide:
+
+```sh
+THEOS=/path/to/roothide/theos make -C src clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+```
+
 Или запустите
-[Build Rootless Artifact](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml),
-чтобы сразу собрать проект на GitHub.
+[Сборку пакетов](https://github.com/weekanya/iFetch/actions/workflows/build-artifact.yml),
+чтобы собрать оба пакета на GitHub.
 
 ## Приватность
 

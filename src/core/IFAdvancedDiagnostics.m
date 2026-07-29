@@ -1,4 +1,5 @@
 #import "IFAdvancedDiagnostics.h"
+#import "IFJailbreakPaths.h"
 
 #import <UIKit/UIKit.h>
 #import <UserNotifications/UserNotifications.h>
@@ -278,7 +279,7 @@ static NSString *IFAFirstMatch(NSString *text, NSArray<NSString *> *patterns) {
 }
 
 static NSArray<NSString *> *IFAInstalledPackageIdentifiers(void) {
-    NSString *contents = [NSString stringWithContentsOfFile:@"/var/jb/Library/dpkg/status"
+    NSString *contents = [NSString stringWithContentsOfFile:IFBootstrapPath(@"/Library/dpkg/status")
                                                    encoding:NSUTF8StringEncoding error:nil];
     NSMutableArray *packages = [NSMutableArray array];
     for (NSString *stanza in [contents componentsSeparatedByString:@"\n\n"]) {
@@ -303,13 +304,13 @@ static NSString *IFASnapshotDirectory(void) {
 }
 
 static NSString *IFADiagnosticStatePath(void) {
-    return @"/var/jb/var/lib/ifetch/diagnostic-mode.plist";
+    return IFBootstrapPath(@"/var/lib/ifetch/diagnostic-mode.plist");
 }
 
 static NSArray<NSString *> *IFATweakDirectories(void) {
     return @[
-        @"/var/jb/Library/MobileSubstrate/DynamicLibraries",
-        @"/var/jb/usr/lib/TweakInject"
+        IFBootstrapPath(@"/Library/MobileSubstrate/DynamicLibraries"),
+        IFBootstrapPath(@"/usr/lib/TweakInject")
     ];
 }
 
@@ -325,7 +326,7 @@ static void IFAAddIssue(NSMutableArray<IFIntegrityIssue *> *issues,
 }
 
 static NSDictionary *IFARunHelper(NSArray<NSString *> *arguments, NSError **error) {
-    NSString *path = @"/var/jb/usr/libexec/ifetchhelper";
+    NSString *path = IFBootstrapPath(@"/usr/libexec/ifetchhelper");
     if (![[NSFileManager defaultManager] isExecutableFileAtPath:path]) {
         if (error != NULL) {
             *error = [NSError errorWithDomain:@"com.wee1ka.ifetch.helper" code:2
@@ -591,7 +592,7 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
 
 + (NSArray<IFLaunchDaemonRecord *> *)launchDaemons {
     NSArray<NSString *> *directories = @[
-        @"/var/jb/Library/LaunchDaemons",
+        IFBootstrapPath(@"/Library/LaunchDaemons"),
         @"/Library/LaunchDaemons"
     ];
     IFProcessMonitor *monitor = [[IFProcessMonitor alloc] init];
@@ -642,15 +643,18 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
 + (NSArray<IFIntegrityIssue *> *)integrityIssues {
     NSMutableArray<IFIntegrityIssue *> *issues = [NSMutableArray array];
     NSFileManager *manager = NSFileManager.defaultManager;
-    if (![manager fileExistsAtPath:@"/var/jb"]) {
-        IFAAddIssue(issues, IFA(@"Rootless bootstrap", @"Rootless bootstrap"),
-                    IFA(@"/var/jb was not found", @"/var/jb не найден"), IFIntegritySeverityProblem);
+    NSString *bootstrapRoot = IFBootstrapRootPath();
+    if (bootstrapRoot.length == 0 || ![manager fileExistsAtPath:bootstrapRoot]) {
+        NSString *title = IFRootHideRuntime() ? @"RootHide bootstrap" : @"Rootless bootstrap";
+        IFAAddIssue(issues, title,
+                    IFA(@"Jailbreak bootstrap was not found", @"Bootstrap джейлбрейка не найден"),
+                    IFIntegritySeverityProblem);
         return issues;
     }
     NSArray<NSArray<NSString *> *> *required = @[
-        @[@"/var/jb/Library/dpkg/status", IFA(@"Package database", @"База пакетов")],
-        @[@"/var/jb/Library/LaunchDaemons", @"LaunchDaemons"],
-        @[@"/var/jb/usr/bin/dpkg", @"dpkg"]
+        @[IFBootstrapPath(@"/Library/dpkg/status"), IFA(@"Package database", @"База пакетов")],
+        @[IFBootstrapPath(@"/Library/LaunchDaemons"), @"LaunchDaemons"],
+        @[IFBootstrapPath(@"/usr/bin/dpkg"), @"dpkg"]
     ];
     for (NSArray<NSString *> *entry in required) {
         if (![manager fileExistsAtPath:entry[0]]) {
@@ -684,7 +688,10 @@ static void IFAScheduleAlert(NSString *identifier, NSString *title, NSString *bo
             }
         }
     }
-    NSArray<NSString *> *scanRoots = @[@"/var/jb/usr/lib", @"/var/jb/Library"];
+    NSArray<NSString *> *scanRoots = @[
+        IFBootstrapPath(@"/usr/lib"),
+        IFBootstrapPath(@"/Library")
+    ];
     NSUInteger brokenLinks = 0;
     for (NSString *root in scanRoots) {
         NSDirectoryEnumerator<NSString *> *enumerator = [manager enumeratorAtPath:root];

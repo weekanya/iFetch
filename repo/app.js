@@ -4,9 +4,9 @@ const translations = {
   en: {
     navPackages: "Packages",
     navAbout: "About",
-    heroEyebrow: "Rootless repository · iOS 14–17",
+    heroEyebrow: "Rootless + RootHide repository · iOS 14–17",
     heroTitle: "System tools made for jailbroken iPhones.",
-    heroDescription: "A focused repository for native diagnostics, monitoring and utilities. Built for Sileo and modern rootless jailbreaks.",
+    heroDescription: "A focused repository for native diagnostics, monitoring and utilities. Built for Sileo, rootless jailbreaks, and RootHide.",
     addSileo: "Add to Sileo",
     copySource: "Copy source",
     copied: "Source copied",
@@ -34,7 +34,7 @@ const translations = {
     installKicker: "Ready to install",
     installTitle: "Add the source once. Updates appear automatically.",
     openSileo: "Open in Sileo",
-    footerText: "Rootless iOS Repository",
+    footerText: "Rootless + RootHide Repository",
     details: "View details",
     downloadDeb: "Download .deb",
     viewDepiction: "View depiction",
@@ -49,9 +49,9 @@ const translations = {
   ru: {
     navPackages: "Пакеты",
     navAbout: "О проекте",
-    heroEyebrow: "Rootless-репозиторий · iOS 14–17",
+    heroEyebrow: "Rootless + RootHide · iOS 14–17",
     heroTitle: "Системные инструменты для iPhone с джейлбрейком.",
-    heroDescription: "Репозиторий нативной диагностики, мониторинга и утилит. Создан для Sileo и современных rootless-джейлбрейков.",
+    heroDescription: "Репозиторий нативной диагностики, мониторинга и утилит для Sileo, rootless-джейлбрейков и RootHide.",
     addSileo: "Добавить в Sileo",
     copySource: "Скопировать репозиторий",
     copied: "Адрес репозитория скопирован",
@@ -79,7 +79,7 @@ const translations = {
     installKicker: "Готово к установке",
     installTitle: "Добавьте репозиторий один раз. Обновления появятся автоматически.",
     openSileo: "Открыть в Sileo",
-    footerText: "Rootless iOS-репозиторий",
+    footerText: "Rootless + RootHide репозиторий",
     details: "Подробнее",
     downloadDeb: "Скачать .deb",
     viewDepiction: "Открыть описание",
@@ -97,16 +97,16 @@ const fallbackPackages = [
   {
     Package: "com.wee1ka.ifetch",
     Name: "iFetch",
-    Version: "5.0.1",
+    Version: "5.1.0",
     Architecture: "iphoneos-arm64",
-    Description: "Advanced system diagnostics, process monitor and CLI fetch for rootless jailbreak devices on iOS 14–17",
+    Description: "Advanced system diagnostics, process monitor and CLI fetch for rootless and RootHide jailbreak devices on iOS 14–17",
     Maintainer: "wee1ka",
     Author: "wee1ka",
     Section: "Tweaks",
     Depends: "firmware (>= 14.0), firmware (<< 18.0), mobilesubstrate, com.opa334.ccsupport",
     Icon: `${repositoryURL}ifetch-icon.png`,
     SileoDepiction: `${repositoryURL}sileodepiction.json`,
-    Filename: "debs/com.wee1ka.ifetch_5.0.1_iphoneos-arm64.deb"
+    Filename: "debs/com.wee1ka.ifetch_5.1.0_iphoneos-arm64.deb"
   }
 ];
 
@@ -262,7 +262,7 @@ function cardForPackage(item) {
 
   const tags = document.createElement("div");
   tags.className = "package-tags";
-  [item.Section || "Utilities", item.Architecture || "iphoneos-arm64", "iOS 14–17"].forEach((value) => {
+  [item.Section || "Utilities", item.Package === "com.wee1ka.ifetch" ? "arm64 · arm64e" : (item.Architecture || "iphoneos-arm64"), "iOS 14–17"].forEach((value) => {
     const tag = document.createElement("span");
     tag.textContent = value;
     tags.append(tag);
@@ -322,8 +322,8 @@ function fillModal(item) {
   const metadata = document.getElementById("modal-metadata");
   metadata.replaceChildren(
     metadataRow(t("version"), item.Version),
-    metadataRow(t("architecture"), item.Architecture),
-    metadataRow(t("compatibility"), "iOS 14–17 · Rootless"),
+    metadataRow(t("architecture"), item.Package === "com.wee1ka.ifetch" ? "iphoneos-arm64 · iphoneos-arm64e" : item.Architecture),
+    metadataRow(t("compatibility"), "iOS 14–17 · Rootless + RootHide"),
     metadataRow(t("section"), item.Section),
     metadataRow(t("maintainer"), item.Maintainer || item.Author),
     metadataRow(t("dependencies"), item.Depends)

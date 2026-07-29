@@ -21,6 +21,7 @@ IFetch_FILES = \
 	app/DiagnosticsViewControllers.swift \
 	app/AdvancedViewControllers.swift \
 	app/IFWidgetRefreshBridge.swift \
+	core/IFJailbreakPaths.m \
 	core/IFSystemActions.m \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m \
@@ -33,13 +34,16 @@ IFetch_SWIFT_BRIDGING_HEADER = app/IFetch-Bridging-Header.h
 
 ifetch_FILES = \
 	cli/main.m \
+	core/IFJailbreakPaths.m \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m
 ifetch_FRAMEWORKS = Foundation SystemConfiguration NetworkExtension
 ifetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 ifetch_CFLAGS = -fobjc-arc
 
-ifetchhelper_FILES = helper/main.m
+ifetchhelper_FILES = \
+	helper/main.m \
+	core/IFJailbreakPaths.m
 ifetchhelper_FRAMEWORKS = Foundation
 ifetchhelper_INSTALL_PATH = /usr/libexec
 ifetchhelper_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
@@ -48,6 +52,7 @@ ifetchhelper_CFLAGS = -fobjc-arc
 IFetchModule_FILES = \
 	control-center/IFetchModule.swift \
 	control-center/IFControlCenterBridge.m \
+	core/IFJailbreakPaths.m \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m
 IFetchModule_FRAMEWORKS = UIKit Foundation SystemConfiguration NetworkExtension
