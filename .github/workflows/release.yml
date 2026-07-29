@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   release:
@@ -86,3 +87,12 @@ jobs:
             --verify-tag \
             --title "iFetch ${GITHUB_REF_NAME}" \
             --notes-file "release-notes/${GITHUB_REF_NAME}.md"
+
+      - name: Publish Sileo repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run sileo-repo.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f release_tag="$GITHUB_REF_NAME"
