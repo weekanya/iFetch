@@ -13,7 +13,6 @@ BUNDLE_NAME = IFetchModule
 APPEX_NAME = IFetchWidgets
 
 IFetch_FILES = \
-	app/main.m \
 	app/AppDelegate.swift \
 	app/IFAppRoute.swift \
 	app/IFDisplayFormatter.swift \

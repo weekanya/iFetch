@@ -1,6 +1,7 @@
 import UIKit
 import UserNotifications
 
+@main
 @objc(AppDelegate)
 final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var window: UIWindow?
