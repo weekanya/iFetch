@@ -47,12 +47,14 @@ ifetchhelper_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 ifetchhelper_CFLAGS = -fobjc-arc
 
 IFetchModule_FILES = \
-	control-center/IFetchModule.m \
+	control-center/IFetchModule.swift \
+	control-center/IFControlCenterBridge.m \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m
 IFetchModule_FRAMEWORKS = UIKit Foundation SystemConfiguration NetworkExtension
 IFetchModule_INSTALL_PATH = /Library/ControlCenter/Bundles
 IFetchModule_CFLAGS = -fobjc-arc
+IFetchModule_SWIFT_BRIDGING_HEADER = control-center/IFetchModule-Bridging-Header.h
 IFetchModule_BUNDLE_EXTENSION = bundle
 IFetchModule_BUNDLE_RESOURCE_DIRS = packaging/ControlCenterModule
 
