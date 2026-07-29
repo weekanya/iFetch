@@ -114,7 +114,7 @@ final class IFChartsViewController: UIViewController {
     }
 }
 
-final class IFBatteryViewController: UITableViewController {
+final class IFBatteryViewController: IFStyledTableViewController {
     private var battery = IFDiagnostics.batteryDetails()
     private var lastUpdated: Date?
 
@@ -430,7 +430,7 @@ final class IFProcessDetailViewController: UIViewController {
     }
 }
 
-final class IFProcessesViewController: UITableViewController {
+final class IFProcessesViewController: IFStyledTableViewController {
     private let monitor = IFLiveMetricsMonitor()
     private let mode = UISegmentedControl(items: ["CPU", "RAM"])
     private var timer: Timer?
@@ -560,7 +560,7 @@ final class IFCrashDetailViewController: UIViewController {
     }
 }
 
-final class IFCrashLogsViewController: UITableViewController {
+final class IFCrashLogsViewController: IFStyledTableViewController {
     private var logs: [IFCrashLog] = []
 
     init() {
@@ -627,7 +627,7 @@ final class IFCrashLogsViewController: UITableViewController {
     }
 }
 
-final class IFTweaksViewController: UITableViewController, UISearchResultsUpdating {
+final class IFTweaksViewController: IFStyledTableViewController, UISearchResultsUpdating {
     private var allTweaks: [IFTweakRecord] = []
     private var visibleTweaks: [IFTweakRecord] = []
 
@@ -705,7 +705,7 @@ final class IFTweaksViewController: UITableViewController, UISearchResultsUpdati
     }
 }
 
-final class IFHealthViewController: UITableViewController {
+final class IFHealthViewController: IFStyledTableViewController {
     private let monitor = IFLiveMetricsMonitor()
     private var items: [IFHealthItem] = []
     private var samplingTimer: Timer?
@@ -833,7 +833,7 @@ final class IFHealthViewController: UITableViewController {
     }
 }
 
-final class IFNetworkDetailsViewController: UITableViewController, CLLocationManagerDelegate {
+final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocationManagerDelegate {
     private var details: [String: Any] = [:]
     private let locationManager = CLLocationManager()
 
@@ -953,7 +953,7 @@ final class IFNetworkDetailsViewController: UITableViewController, CLLocationMan
 }
 
 @objc(IFDiagnosticsViewController)
-final class IFDiagnosticsViewController: UITableViewController {
+final class IFDiagnosticsViewController: IFStyledTableViewController {
     init() {
         super.init(style: .insetGrouped)
     }

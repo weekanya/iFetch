@@ -4,6 +4,107 @@ func IFL(_ english: String, _ russian: String) -> String {
     IFLanguageManager.english(english, russian: russian)
 }
 
+enum IFAppStyle {
+    static let accent = UIColor(red: 0.12, green: 0.47, blue: 0.98, alpha: 1)
+    static let cardBackground = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.105, green: 0.11, blue: 0.135, alpha: 1)
+            : UIColor.secondarySystemGroupedBackground
+    }
+
+    static func configureGlobalAppearance() {
+        let navigation = UINavigationBarAppearance()
+        navigation.configureWithDefaultBackground()
+        navigation.backgroundEffect = UIBlurEffect(style: .systemMaterial)
+        navigation.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.82)
+        navigation.shadowColor = .clear
+        navigation.titleTextAttributes = [
+            .foregroundColor: UIColor.label,
+            .font: UIFont.systemFont(ofSize: 17, weight: .semibold)
+        ]
+        navigation.largeTitleTextAttributes = [
+            .foregroundColor: UIColor.label,
+            .font: UIFont.systemFont(ofSize: 34, weight: .bold)
+        ]
+
+        let navigationBar = UINavigationBar.appearance()
+        navigationBar.standardAppearance = navigation
+        navigationBar.scrollEdgeAppearance = navigation
+        navigationBar.compactAppearance = navigation
+        navigationBar.tintColor = accent
+
+        UIBarButtonItem.appearance().tintColor = accent
+        UISearchBar.appearance().tintColor = accent
+        UISwitch.appearance().onTintColor = accent
+    }
+
+    static func symbol(
+        _ name: String,
+        color: UIColor,
+        pointSize: CGFloat = 16,
+        weight: UIImage.SymbolWeight = .semibold
+    ) -> UIImage? {
+        let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
+        return UIImage(systemName: name, withConfiguration: configuration)?
+            .withTintColor(color, renderingMode: .alwaysOriginal)
+    }
+
+    static func configure(_ controller: UITableViewController) {
+        controller.navigationController?.navigationBar.prefersLargeTitles = true
+        controller.navigationItem.largeTitleDisplayMode = .automatic
+        controller.tableView.backgroundColor = .systemGroupedBackground
+        controller.tableView.separatorColor = UIColor.separator.withAlphaComponent(0.48)
+        controller.tableView.separatorInset = UIEdgeInsets(top: 0, left: 58, bottom: 0, right: 18)
+        controller.tableView.estimatedRowHeight = 58
+        controller.tableView.rowHeight = UITableView.automaticDimension
+        controller.tableView.keyboardDismissMode = .onDrag
+        if #available(iOS 15.0, *) {
+            controller.tableView.sectionHeaderTopPadding = 12
+        }
+    }
+
+    static func configure(_ cell: UITableViewCell) {
+        cell.backgroundColor = cardBackground
+        cell.tintColor = accent
+        cell.textLabel?.textColor = .label
+        cell.detailTextLabel?.textColor = .secondaryLabel
+        let selection = UIView()
+        selection.backgroundColor = accent.withAlphaComponent(0.12)
+        cell.selectedBackgroundView = selection
+    }
+}
+
+class IFStyledTableViewController: UITableViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        IFAppStyle.configure(self)
+    }
+
+    override func tableView(
+        _ tableView: UITableView,
+        willDisplay cell: UITableViewCell,
+        forRowAt indexPath: IndexPath
+    ) {
+        IFAppStyle.configure(cell)
+    }
+
+    override func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
+        guard let header = view as? UITableViewHeaderFooterView else {
+            return
+        }
+        header.textLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        header.textLabel?.textColor = .secondaryLabel
+    }
+
+    override func tableView(_ tableView: UITableView, willDisplayFooterView view: UIView, forSection section: Int) {
+        guard let footer = view as? UITableViewHeaderFooterView else {
+            return
+        }
+        footer.textLabel?.font = .systemFont(ofSize: 13, weight: .regular)
+        footer.textLabel?.textColor = .tertiaryLabel
+    }
+}
+
 func IFValueCell(
     _ tableView: UITableView,
     identifier: String,
@@ -22,6 +123,7 @@ func IFValueCell(
     cell.textLabel?.textColor = .label
     cell.detailTextLabel?.textColor = .secondaryLabel
     cell.accessoryView = nil
+    IFAppStyle.configure(cell)
     return cell
 }
 
@@ -48,8 +150,11 @@ final class IFLineChartView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = .secondarySystemGroupedBackground
-        layer.cornerRadius = 16
+        backgroundColor = IFAppStyle.cardBackground
+        layer.cornerRadius = 18
+        layer.cornerCurve = .continuous
+        layer.borderWidth = 0.5
+        layer.borderColor = UIColor.separator.withAlphaComponent(0.25).cgColor
         clipsToBounds = true
     }
 

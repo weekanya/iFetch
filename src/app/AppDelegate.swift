@@ -17,6 +17,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        IFAppStyle.configureGlobalAppearance()
         let rootViewController = RootViewController()
         let navigationController = UINavigationController(rootViewController: rootViewController)
         let window = UIWindow(frame: UIScreen.main.bounds)

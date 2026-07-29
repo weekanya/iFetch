@@ -1,7 +1,7 @@
 import UIKit
 
 @objc(RootViewController)
-final class RootViewController: UITableViewController {
+final class RootViewController: IFStyledTableViewController {
     private enum Tab: Int {
         case overview
         case system
@@ -32,8 +32,8 @@ final class RootViewController: UITableViewController {
         title = "iFetch"
         networkSnapshot = networkMonitor.refresh()
         publicIPAddress = IFL("Loading…", "Загрузка…")
-        tableView.rowHeight = 52
-        tableView.estimatedRowHeight = 52
+        tableView.rowHeight = 58
+        tableView.estimatedRowHeight = 58
         tableView.cellLayoutMarginsFollowReadableWidth = true
         setupHeader()
         fetchPublicIPAddress()
@@ -86,7 +86,7 @@ final class RootViewController: UITableViewController {
     }
 
     private func setupHeader() {
-        let header = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 56))
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 68))
         let titles = [
             IFL("Overview", "Сводка"),
             IFL("System", "Система"),
@@ -97,13 +97,29 @@ final class RootViewController: UITableViewController {
         }
         segmentedControl.selectedSegmentIndex = selectedTab.rawValue
         segmentedControl.translatesAutoresizingMaskIntoConstraints = false
+        segmentedControl.selectedSegmentTintColor = IFAppStyle.accent
+        segmentedControl.backgroundColor = .tertiarySystemGroupedBackground
+        segmentedControl.setTitleTextAttributes(
+            [
+                .foregroundColor: UIColor.secondaryLabel,
+                .font: UIFont.systemFont(ofSize: 13, weight: .semibold)
+            ],
+            for: .normal
+        )
+        segmentedControl.setTitleTextAttributes(
+            [
+                .foregroundColor: UIColor.white,
+                .font: UIFont.systemFont(ofSize: 13, weight: .bold)
+            ],
+            for: .selected
+        )
         segmentedControl.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
         header.addSubview(segmentedControl)
         NSLayoutConstraint.activate([
             segmentedControl.leadingAnchor.constraint(equalTo: header.layoutMarginsGuide.leadingAnchor),
             segmentedControl.trailingAnchor.constraint(equalTo: header.layoutMarginsGuide.trailingAnchor),
             segmentedControl.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            segmentedControl.heightAnchor.constraint(equalToConstant: 32)
+            segmentedControl.heightAnchor.constraint(equalToConstant: 36)
         ])
         tableView.tableHeaderView = header
     }
@@ -234,13 +250,16 @@ final class RootViewController: UITableViewController {
         cell.detailTextLabel?.text = value
         cell.detailTextLabel?.adjustsFontSizeToFitWidth = true
         cell.detailTextLabel?.minimumScaleFactor = 0.7
-        cell.textLabel?.font = .systemFont(ofSize: 17)
+        cell.textLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+        cell.detailTextLabel?.font = .systemFont(ofSize: 14, weight: .regular)
         cell.textLabel?.textAlignment = .natural
         cell.textLabel?.textColor = .label
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.accessoryType = .none
         cell.selectionStyle = .none
         cell.imageView?.image = nil
+        cell.imageView?.tintColor = .label
+        IFAppStyle.configure(cell)
         return cell
     }
 
@@ -251,10 +270,8 @@ final class RootViewController: UITableViewController {
         color: UIColor
     ) -> UITableViewCell {
         let cell = standardCell(title: title, value: value)
-        let configuration = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        cell.imageView?.image = UIImage(systemName: symbol, withConfiguration: configuration)
-            ?? UIImage(systemName: "circle.fill", withConfiguration: configuration)
-        cell.imageView?.tintColor = color
+        cell.imageView?.image = IFAppStyle.symbol(symbol, color: color)
+            ?? IFAppStyle.symbol("circle.fill", color: color)
         return cell
     }
 
@@ -263,7 +280,7 @@ final class RootViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: identifier)
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: identifier)
         cell.textLabel?.text = device.modelName
-        cell.textLabel?.font = .systemFont(ofSize: 20, weight: .semibold)
+        cell.textLabel?.font = .systemFont(ofSize: 21, weight: .bold)
         cell.detailTextLabel?.text = "iOS \(UIDevice.current.systemVersion) · \(jailbreak.environmentName)"
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.contentMode = .scaleAspectFit
@@ -271,13 +288,15 @@ final class RootViewController: UITableViewController {
         cell.imageView?.image = UIImage(named: device.imageName)
             ?? UIImage(named: "DevicePhotos/iphone-generic.png")
         cell.selectionStyle = .none
+        IFAppStyle.configure(cell)
         return cell
     }
 
-    private func actionCell(title: String, color: UIColor) -> UITableViewCell {
+    private func actionCell(title: String, symbol: String, color: UIColor) -> UITableViewCell {
         let cell = standardCell(title: title, value: "")
-        cell.textLabel?.textAlignment = .center
-        cell.textLabel?.textColor = color
+        cell.textLabel?.textAlignment = .natural
+        cell.textLabel?.textColor = color == .systemRed ? .systemRed : .label
+        cell.imageView?.image = IFAppStyle.symbol(symbol, color: color)
         cell.selectionStyle = .default
         return cell
     }
@@ -389,30 +408,36 @@ final class RootViewController: UITableViewController {
             let cell = standardCell(title: titles[indexPath.row], value: values[indexPath.row])
             cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
-            cell.imageView?.image = UIImage(systemName: indexPath.row == 0 ? "globe" : "bell.badge")
+            cell.imageView?.image = indexPath.row == 0
+                ? IFAppStyle.symbol("globe", color: .systemBlue)
+                : IFAppStyle.symbol("bell.badge.fill", color: .systemOrange)
             return cell
         }
         if indexPath.section == 1 {
-            return actionCell(
-                title: [
-                    "Respring",
-                    IFL("Refresh widgets", "Обновить виджеты"),
-                    IFL("Refresh icon cache", "Обновить кэш иконок")
-                ][indexPath.row],
-                color: .systemBlue
-            )
+            let rows: [(String, String, UIColor)] = [
+                ("Respring", "arrow.clockwise.circle.fill", .systemBlue),
+                (IFL("Refresh widgets", "Обновить виджеты"), "rectangle.3.group.fill", .systemIndigo),
+                (IFL("Refresh icon cache", "Обновить кэш иконок"), "square.grid.2x2.fill", .systemTeal)
+            ]
+            let row = rows[indexPath.row]
+            return actionCell(title: row.0, symbol: row.1, color: row.2)
         }
         if indexPath.section == 2 {
             return actionCell(
                 title: indexPath.row == 0 ? IFL("Enter Safe Mode", "Войти в Safe Mode") : "Userspace Reboot",
+                symbol: indexPath.row == 0 ? "shield.lefthalf.filled" : "power.circle.fill",
                 color: indexPath.row == 0 ? .systemOrange : .systemRed
             )
         }
-        return actionCell(title: IFL("Copy system report", "Скопировать системный отчёт"), color: .systemBlue)
+        return actionCell(
+            title: IFL("Copy system report", "Скопировать системный отчёт"),
+            symbol: "doc.on.doc.fill",
+            color: .systemBlue
+        )
     }
 
     override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        selectedTab == .overview && indexPath.section == 0 ? 88 : 52
+        selectedTab == .overview && indexPath.section == 0 ? 100 : 58
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -521,6 +546,7 @@ final class RootViewController: UITableViewController {
         jailbreak = IFetchCore.jailbreakInfo()
         networkSnapshot = networkMonitor.refresh()
         publicIPAddress = IFL("Loading…", "Загрузка…")
+        navigationItem.rightBarButtonItem?.accessibilityLabel = IFL("Diagnostics", "Диагностика")
         tableView.reloadData()
         fetchPublicIPAddress()
     }

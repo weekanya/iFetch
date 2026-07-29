@@ -1,6 +1,6 @@
 import UIKit
 
-final class IFProcessConnectionsViewController: UITableViewController {
+final class IFProcessConnectionsViewController: IFStyledTableViewController {
     private let process: IFProcessSample
     private var connections: [IFProcessConnection] = []
 
@@ -60,7 +60,7 @@ final class IFProcessConnectionsViewController: UITableViewController {
     }
 }
 
-final class IFInjectionMapViewController: UITableViewController, UISearchResultsUpdating {
+final class IFInjectionMapViewController: IFStyledTableViewController, UISearchResultsUpdating {
     private var groups: [IFInjectionGroup] = []
     private var visibleGroups: [IFInjectionGroup] = []
 
@@ -126,7 +126,7 @@ final class IFInjectionMapViewController: UITableViewController, UISearchResults
     }
 }
 
-final class IFLaunchDaemonsViewController: UITableViewController, UISearchResultsUpdating {
+final class IFLaunchDaemonsViewController: IFStyledTableViewController, UISearchResultsUpdating {
     private var records: [IFLaunchDaemonRecord] = []
     private var visibleRecords: [IFLaunchDaemonRecord] = []
 
@@ -191,7 +191,7 @@ final class IFLaunchDaemonsViewController: UITableViewController, UISearchResult
     }
 }
 
-final class IFIntegrityViewController: UITableViewController {
+final class IFIntegrityViewController: IFStyledTableViewController {
     private var issues: [IFIntegrityIssue] = []
 
     init() {
@@ -247,7 +247,7 @@ final class IFIntegrityViewController: UITableViewController {
     }
 }
 
-final class IFSnapshotsViewController: UITableViewController {
+final class IFSnapshotsViewController: IFStyledTableViewController {
     private var snapshots: [[String: Any]] = []
     private lazy var compareButton = UIBarButtonItem(
         title: IFL("Compare last 2", "Сравнить 2"),
@@ -443,7 +443,7 @@ final class IFSnapshotsViewController: UITableViewController {
     }
 }
 
-final class IFDiagnosticModeViewController: UITableViewController {
+final class IFDiagnosticModeViewController: IFStyledTableViewController {
     init() {
         super.init(style: .insetGrouped)
     }
@@ -567,7 +567,7 @@ final class IFDiagnosticModeViewController: UITableViewController {
     }
 }
 
-final class IFPreferencesViewController: UITableViewController {
+final class IFPreferencesViewController: IFStyledTableViewController {
     init() {
         super.init(style: .insetGrouped)
     }
@@ -656,7 +656,7 @@ final class IFPreferencesViewController: UITableViewController {
     }
 }
 
-final class IFAdvancedMenuViewController: UITableViewController {
+final class IFAdvancedMenuViewController: IFStyledTableViewController {
     init() {
         super.init(style: .insetGrouped)
     }
