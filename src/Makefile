@@ -16,6 +16,7 @@ IFetch_FILES = \
 	app/main.m \
 	app/AppDelegate.swift \
 	app/IFAppRoute.swift \
+	app/IFDisplayFormatter.swift \
 	app/IFWidgetRefreshBridge.swift \
 	app/RootViewController.m \
 	app/DiagnosticsViewController.m \

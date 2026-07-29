@@ -1,4 +1,5 @@
 #import "RootViewController.h"
+#import "IFetch-Swift.h"
 #import "../core/IFetchCore.h"
 #import "../core/IFDiagnostics.h"
 #import "../core/IFAdvancedDiagnostics.h"
@@ -314,8 +315,8 @@ static void IFTRefreshWidgetTimelines(void) {
         NSNumber *totalStorage = [IFetchCore totalStorageBytes];
         NSNumber *usedStorage = [IFetchCore usedStorageBytes];
         NSArray *rows = @[
-            @[IFT(@"Memory", @"Оперативная память"), usedMemory ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedMemory.unsignedLongLongValue], [IFetchCore formatBytes:[IFetchCore totalMemoryBytes]]] : IFT(@"Unavailable", @"Недоступно")],
-            @[IFT(@"Storage", @"Накопитель"), (usedStorage && totalStorage) ? [NSString stringWithFormat:@"%@ / %@", [IFetchCore formatBytes:usedStorage.unsignedLongLongValue], [IFetchCore formatBytes:totalStorage.unsignedLongLongValue]] : IFT(@"Unavailable", @"Недоступно")],
+            @[IFT(@"Memory", @"Оперативная память"), usedMemory ? [NSString stringWithFormat:@"%@ / %@", [IFDisplayFormatter bytes:usedMemory.unsignedLongLongValue], [IFDisplayFormatter bytes:[IFetchCore totalMemoryBytes]]] : IFT(@"Unavailable", @"Недоступно")],
+            @[IFT(@"Storage", @"Накопитель"), (usedStorage && totalStorage) ? [NSString stringWithFormat:@"%@ / %@", [IFDisplayFormatter bytes:usedStorage.unsignedLongLongValue], [IFDisplayFormatter bytes:totalStorage.unsignedLongLongValue]] : IFT(@"Unavailable", @"Недоступно")],
             @[IFT(@"Uptime", @"Аптайм"), [IFetchCore systemUptime]]
         ];
         UITableViewCell *cell = [self standardCellWithTitle:rows[(NSUInteger)indexPath.row][0]
@@ -669,8 +670,8 @@ static void IFTRefreshWidgetTimelines(void) {
          self.device.architectureName,
          [IFetchCore darwinVersion],
          [IFetchCore systemUptime],
-         usedMemory ? [IFetchCore formatBytes:usedMemory.unsignedLongLongValue] : IFT(@"Unavailable", @"Недоступно"),
-         usedStorage ? [IFetchCore formatBytes:usedStorage.unsignedLongLongValue] : IFT(@"Unavailable", @"Недоступно"),
+         usedMemory ? [IFDisplayFormatter bytes:usedMemory.unsignedLongLongValue] : IFT(@"Unavailable", @"Недоступно"),
+         usedStorage ? [IFDisplayFormatter bytes:usedStorage.unsignedLongLongValue] : IFT(@"Unavailable", @"Недоступно"),
          self.jailbreak.environmentName,
          self.jailbreak.injectorDescription,
          (long)self.jailbreak.installedPackageCount,

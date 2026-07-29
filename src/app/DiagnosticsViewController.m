@@ -1,4 +1,5 @@
 #import "DiagnosticsViewController.h"
+#import "IFetch-Swift.h"
 
 #import "../core/IFDiagnostics.h"
 #import "../core/IFAdvancedDiagnostics.h"
@@ -81,7 +82,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
         CGContextMoveToPoint(context, CGRectGetMinX(plot), y);
         CGContextAddLineToPoint(context, CGRectGetMaxX(plot), y);
         double axisValue = maximum * (1.0 - row / 3.0);
-        NSString *axisText = self.rateValues ? [IFetchCore formatRate:axisValue]
+        NSString *axisText = self.rateValues ? [IFDisplayFormatter rate:axisValue]
             : [NSString stringWithFormat:@"%.0f%@", axisValue, self.unit ?: @""];
         [axisText drawInRect:CGRectMake(4, y - 6, 38, 12) withAttributes:axisAttributes];
     }
@@ -224,16 +225,16 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     if (latest == nil) {
         return;
     }
-    self.valueLabels[0].text = [NSString stringWithFormat:@"%.1f%%", latest.cpuPercent];
-    self.valueLabels[1].text = [NSString stringWithFormat:@"%.1f%%", latest.memoryPercent];
+    self.valueLabels[0].text = [IFDisplayFormatter percent:latest.cpuPercent];
+    self.valueLabels[1].text = [IFDisplayFormatter percent:latest.memoryPercent];
     self.valueLabels[2].text = [NSString stringWithFormat:@"↓ %@",
-                                [IFetchCore formatRate:latest.downloadBytesPerSecond]];
+                                [IFDisplayFormatter rate:latest.downloadBytesPerSecond]];
     self.valueLabels[3].text = [NSString stringWithFormat:@"↑ %@",
-                                [IFetchCore formatRate:latest.uploadBytesPerSecond]];
+                                [IFDisplayFormatter rate:latest.uploadBytesPerSecond]];
     self.valueLabels[4].text = latest.batteryTemperature > 0
-        ? [NSString stringWithFormat:@"%.1f °C", latest.batteryTemperature] : IFUI(@"Unavailable", @"Недоступно");
+        ? [IFDisplayFormatter temperature:latest.batteryTemperature] : IFUI(@"Unavailable", @"Недоступно");
     self.valueLabels[5].text = latest.batteryLevel > 0
-        ? [NSString stringWithFormat:@"%.0f%%", latest.batteryLevel] : IFUI(@"Unavailable", @"Недоступно");
+        ? [IFDisplayFormatter roundedPercent:latest.batteryLevel] : IFUI(@"Unavailable", @"Недоступно");
 }
 
 @end
@@ -289,7 +290,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSArray *rows = @[
-        @[IFUI(@"Health", @"Здоровье"), self.battery.healthPercent > 0 ? [NSString stringWithFormat:@"%.0f%%", self.battery.healthPercent] : IFUI(@"Unavailable", @"Недоступно")],
+        @[IFUI(@"Health", @"Здоровье"), self.battery.healthPercent > 0 ? [IFDisplayFormatter roundedPercent:self.battery.healthPercent] : IFUI(@"Unavailable", @"Недоступно")],
         @[IFUI(@"Current capacity", @"Текущая ёмкость"), [self value:self.battery.currentCapacity suffix:@" mAh"]],
         @[IFUI(@"Maximum capacity", @"Максимальная ёмкость"), [self value:self.battery.maximumCapacity suffix:@" mAh"]],
         @[IFUI(@"Design capacity", @"Проектная ёмкость"), [self value:self.battery.designCapacity suffix:@" mAh"]],
@@ -436,7 +437,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     NSInteger hours = (NSInteger)(current.runningTime / 3600);
     NSInteger minutes = ((NSInteger)current.runningTime % 3600) / 60;
     self.detailsLabel.text = [NSString stringWithFormat:@"PID: %d\nCPU: %.1f%%\nRAM: %@\n%@: %ld\n%@: %ldh %ldm\n\n%@\n\n%@: %@",
-        current.pid, current.cpuPercent, [IFetchCore formatBytes:current.residentBytes],
+        current.pid, current.cpuPercent, [IFDisplayFormatter bytes:current.residentBytes],
         IFUI(@"Threads", @"Потоки"), (long)current.threadCount,
         IFUI(@"Running", @"Работает"), (long)hours, (long)minutes,
         current.executablePath.length ? current.executablePath : IFUI(@"Path unavailable", @"Путь недоступен"),
@@ -574,7 +575,7 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     IFProcessSample *process = self.samples[indexPath.row];
     UITableViewCell *cell = IFValueCell(tableView, process.name,
         [NSString stringWithFormat:@"PID %d · %.1f%% · %@", process.pid, process.cpuPercent,
-         [IFetchCore formatBytes:process.residentBytes]]);
+         [IFDisplayFormatter bytes:process.residentBytes]]);
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     if ([[self.monitor sustainedHighCPUProcesses] containsObject:process]) {
@@ -922,9 +923,9 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
             @[@"BSSID", [self.details[@"bssid"] length] ? self.details[@"bssid"] : wifiUnavailable],
             @[IFUI(@"Cellular", @"Сотовая сеть"), [self.details[@"radio"] length] ? self.details[@"radio"] : IFUI(@"No active cellular service", @"Нет активной сотовой сети")],
             @[@"VPN", [self.details[@"vpn"] length] ? self.details[@"vpn"] : IFUI(@"None", @"Нет")],
-            @[IFUI(@"DNS latency", @"Задержка DNS"), latency.doubleValue >= 0 ? [NSString stringWithFormat:@"%.0f ms", latency.doubleValue] : IFUI(@"Unavailable", @"Недоступно")],
+            @[IFUI(@"DNS latency", @"Задержка DNS"), latency.doubleValue >= 0 ? [IFDisplayFormatter latency:latency.doubleValue] : IFUI(@"Unavailable", @"Недоступно")],
             @[IFUI(@"Internet", @"Интернет"), internetValue],
-            @[IFUI(@"HTTPS latency", @"Задержка HTTPS"), internetLatency.doubleValue >= 0 ? [NSString stringWithFormat:@"%.0f ms", internetLatency.doubleValue] : IFUI(@"Unavailable", @"Недоступно")]
+            @[IFUI(@"HTTPS latency", @"Задержка HTTPS"), internetLatency.doubleValue >= 0 ? [IFDisplayFormatter latency:internetLatency.doubleValue] : IFUI(@"Unavailable", @"Недоступно")]
         ];
         return IFValueCell(tableView, rows[indexPath.row][0], rows[indexPath.row][1]);
     }
@@ -932,8 +933,8 @@ static UITableViewCell *IFValueCell(UITableView *tableView, NSString *title, NSS
     NSString *name = names[indexPath.row];
     NSDictionary *traffic = self.details[@"interfaces"][name];
     return IFValueCell(tableView, name, [NSString stringWithFormat:@"↓ %@  ↑ %@",
-        [IFetchCore formatBytes:[traffic[@"received"] unsignedLongLongValue]],
-        [IFetchCore formatBytes:[traffic[@"sent"] unsignedLongLongValue]]]);
+        [IFDisplayFormatter bytes:[traffic[@"received"] unsignedLongLongValue]],
+        [IFDisplayFormatter bytes:[traffic[@"sent"] unsignedLongLongValue]]]);
 }
 
 @end
