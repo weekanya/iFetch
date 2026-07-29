@@ -531,7 +531,7 @@ final class IFCrashDetailViewController: UIViewController {
         textView.translatesAutoresizingMaskIntoConstraints = false
         textView.isEditable = false
         textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        let analysis = IFAdvancedDiagnostics.analysis(forCrashLog: log)
+        let analysis = IFAdvancedDiagnostics.analysis(for: log)
         textView.text = "\(analysis.summary)\n\n————————————\n\n\(log.preview)"
         view.addSubview(textView)
         NSLayoutConstraint.activate([
