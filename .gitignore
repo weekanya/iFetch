@@ -6,3 +6,4 @@ rootful/packages/
 *.deb
 *.dSYM/
 docs/
+.artifacts/

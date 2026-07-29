@@ -17,10 +17,12 @@ IFetch_FILES = \
 	app/AppDelegate.swift \
 	app/IFAppRoute.swift \
 	app/IFDisplayFormatter.swift \
+	app/IFSharedUI.swift \
+	app/RootViewController.swift \
+	app/DiagnosticsViewControllers.swift \
+	app/AdvancedViewControllers.swift \
 	app/IFWidgetRefreshBridge.swift \
-	app/RootViewController.m \
-	app/DiagnosticsViewController.m \
-	app/IFAdvancedViewControllers.m \
+	core/IFSystemActions.m \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m \
 	core/IFAdvancedDiagnostics.m
