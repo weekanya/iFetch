@@ -100,18 +100,27 @@ jobs:
           test -z "$rootless_invalid"
           test -z "$roothide_invalid"
           src/scripts/validate_project.sh
-          shasum -a 256 "$rootless_package" > "${rootless_package}.sha256"
-          shasum -a 256 "$roothide_package" > "${roothide_package}.sha256"
+
+          rootless_release="packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_rootless_iphoneos-arm64.deb"
+          roothide_release="packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_roothide_iphoneos-arm64e.deb"
+          cp "$rootless_package" "$rootless_release"
+          cp "$roothide_package" "$roothide_release"
+          shasum -a 256 "$rootless_release" > "${rootless_release}.sha256"
+          shasum -a 256 "$roothide_release" > "${roothide_release}.sha256"
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release delete "$GITHUB_REF_NAME" --yes
+          fi
+
           gh release create "$GITHUB_REF_NAME" \
-            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_iphoneos-arm64.deb" \
-            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_iphoneos-arm64.deb.sha256" \
-            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_iphoneos-arm64e.deb" \
-            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_iphoneos-arm64e.deb.sha256" \
+            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_rootless_iphoneos-arm64.deb" \
+            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_rootless_iphoneos-arm64.deb.sha256" \
+            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_roothide_iphoneos-arm64e.deb" \
+            "packages/com.wee1ka.ifetch_${GITHUB_REF_NAME}_roothide_iphoneos-arm64e.deb.sha256" \
             --verify-tag \
             --title "iFetch ${GITHUB_REF_NAME}" \
             --notes-file "release-notes/${GITHUB_REF_NAME}.md"

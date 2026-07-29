@@ -106,7 +106,7 @@ const fallbackPackages = [
     Depends: "firmware (>= 14.0), firmware (<< 18.0), mobilesubstrate, com.opa334.ccsupport",
     Icon: `${repositoryURL}ifetch-icon.png`,
     SileoDepiction: `${repositoryURL}sileodepiction.json`,
-    Filename: "debs/com.wee1ka.ifetch_5.1.0_iphoneos-arm64.deb"
+    Filename: "debs/com.wee1ka.ifetch_5.1.0_rootless_iphoneos-arm64.deb"
   }
 ];
 

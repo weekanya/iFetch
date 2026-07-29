@@ -117,8 +117,8 @@ jobs:
           version="$(sed -n 's/^Version: //p' src/control)"
           rootless_package="packages/com.wee1ka.ifetch_${version}_iphoneos-arm64.deb"
           roothide_package="packages/com.wee1ka.ifetch_${version}_iphoneos-arm64e.deb"
-          rootless_name="$(basename "$rootless_package")"
-          roothide_name="$(basename "$roothide_package")"
+          rootless_name="com.wee1ka.ifetch_${version}_rootless_iphoneos-arm64.deb"
+          roothide_name="com.wee1ka.ifetch_${version}_roothide_iphoneos-arm64e.deb"
 
           test -f "$rootless_package"
           test -f "$roothide_package"
@@ -143,7 +143,8 @@ jobs:
           src/scripts/validate_project.sh
 
           mkdir -p artifact
-          cp "$rootless_package" "$roothide_package" artifact/
+          cp "$rootless_package" "artifact/$rootless_name"
+          cp "$roothide_package" "artifact/$roothide_name"
           dpkg-deb -I "$rootless_package" > artifact/ROOTLESS_PACKAGE_CONTROL.txt
           dpkg-deb -c "$rootless_package" > artifact/ROOTLESS_PACKAGE_CONTENTS.txt
           dpkg-deb -I "$roothide_package" > artifact/ROOTHIDE_PACKAGE_CONTROL.txt
