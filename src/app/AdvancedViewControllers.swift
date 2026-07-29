@@ -22,7 +22,7 @@ final class IFProcessConnectionsViewController: UITableViewController {
     }
 
     @objc private func reloadConnections() {
-        connections = IFAdvancedDiagnostics.connections(for: process)
+        connections = IFAdvancedDiagnostics.connections(forProcess: process)
         ifEmptyBackground(
             IFL("No visible network connections", "Видимые сетевые соединения не найдены"),
             visible: connections.isEmpty
