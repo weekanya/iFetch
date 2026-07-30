@@ -481,12 +481,17 @@ final class IFDiagnosticModeViewController: IFStyledTableViewController {
             let detail = enabled
                 ? "\(IFL("Enabled", "Включён")) · \(IFAdvancedDiagnostics.diagnosticModeDisabledCount()) \(IFL("tweaks disabled", "твиков отключено"))"
                 : IFL("Disabled", "Выключен")
-            return IFValueCell(
+            let cell = IFValueCell(
                 tableView,
                 identifier: "IFDiagnosticState",
                 title: IFL("State", "Состояние"),
                 detail: detail
             )
+            let color: UIColor = enabled ? .systemOrange : .systemGreen
+            let symbol = enabled ? "exclamationmark.shield.fill" : "checkmark.shield.fill"
+            cell.imageView?.image = IFAppStyle.symbol(symbol, color: color)
+                ?? IFAppStyle.symbol("shield.fill", color: color)
+            return cell
         }
         let cell = IFValueCell(
             tableView,
@@ -496,8 +501,11 @@ final class IFDiagnosticModeViewController: IFStyledTableViewController {
                 : IFL("Disable third-party tweaks", "Отключить сторонние твики"),
             detail: ""
         )
+        let color: UIColor = enabled ? .systemBlue : .systemOrange
+        let symbol = enabled ? "arrow.uturn.backward.circle.fill" : "stethoscope"
+        cell.imageView?.image = IFAppStyle.symbol(symbol, color: color)
+            ?? IFAppStyle.symbol("gearshape.fill", color: color)
         cell.textLabel?.textColor = enabled ? .systemBlue : .systemOrange
-        cell.textLabel?.textAlignment = .center
         cell.selectionStyle = .default
         return cell
     }
@@ -693,6 +701,12 @@ final class IFAdvancedMenuViewController: IFStyledTableViewController {
             "gearshape.2",
             "stethoscope"
         ]
+        let colors: [UIColor] = [
+            .systemIndigo,
+            .systemPurple,
+            .systemBlue,
+            .systemOrange
+        ]
         let cell = IFValueCell(
             tableView,
             identifier: "IFAdvancedMenu",
@@ -700,7 +714,8 @@ final class IFAdvancedMenuViewController: IFStyledTableViewController {
             detail: details[indexPath.row],
             lines: 3
         )
-        cell.imageView?.image = UIImage(systemName: symbols[indexPath.row])
+        cell.imageView?.image = IFAppStyle.symbol(symbols[indexPath.row], color: colors[indexPath.row])
+            ?? IFAppStyle.symbol("gearshape.fill", color: colors[indexPath.row])
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
         return cell

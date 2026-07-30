@@ -173,29 +173,71 @@ final class IFBatteryViewController: IFStyledTableViewController {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let rows: [(String, String)] = [
+        let rows: [(String, String, String, UIColor)] = [
             (
                 IFL("Health", "Здоровье"),
                 battery.healthPercent > 0
                     ? IFDisplayFormatter.roundedPercent(battery.healthPercent)
-                    : IFL("Unavailable", "Недоступно")
+                    : IFL("Unavailable", "Недоступно"),
+                "heart.fill",
+                .systemRed
             ),
-            (IFL("Current capacity", "Текущая ёмкость"), value(battery.currentCapacity, suffix: " mAh")),
-            (IFL("Maximum capacity", "Максимальная ёмкость"), value(battery.maximumCapacity, suffix: " mAh")),
-            (IFL("Design capacity", "Проектная ёмкость"), value(battery.designCapacity, suffix: " mAh")),
-            (IFL("Cycles", "Циклы"), battery.cycleCount?.stringValue ?? IFL("Unavailable", "Недоступно")),
-            (IFL("Temperature", "Температура"), value(battery.temperatureCelsius, suffix: " °C")),
-            (IFL("Voltage", "Напряжение"), value(battery.voltageMillivolts, suffix: " mV")),
-            (IFL("Current", "Ток"), value(battery.amperageMilliamps, suffix: " mA")),
+            (
+                IFL("Current capacity", "Текущая ёмкость"),
+                value(battery.currentCapacity, suffix: " mAh"),
+                "battery.75",
+                .systemGreen
+            ),
+            (
+                IFL("Maximum capacity", "Максимальная ёмкость"),
+                value(battery.maximumCapacity, suffix: " mAh"),
+                "battery.100",
+                .systemGreen
+            ),
+            (
+                IFL("Design capacity", "Проектная ёмкость"),
+                value(battery.designCapacity, suffix: " mAh"),
+                "ruler.fill",
+                .systemBlue
+            ),
+            (
+                IFL("Cycles", "Циклы"),
+                battery.cycleCount?.stringValue ?? IFL("Unavailable", "Недоступно"),
+                "arrow.triangle.2.circlepath",
+                .systemIndigo
+            ),
+            (
+                IFL("Temperature", "Температура"),
+                value(battery.temperatureCelsius, suffix: " °C"),
+                "thermometer",
+                .systemOrange
+            ),
+            (
+                IFL("Voltage", "Напряжение"),
+                value(battery.voltageMillivolts, suffix: " mV"),
+                "bolt.fill",
+                .systemYellow
+            ),
+            (
+                IFL("Current", "Ток"),
+                value(battery.amperageMilliamps, suffix: " mA"),
+                "waveform.path.ecg",
+                .systemTeal
+            ),
             (
                 IFL("Charging power", "Мощность зарядки"),
                 battery.externalConnected
                     ? String(format: "%.1f W%@", battery.chargingWatts, battery.chargingWatts >= 15 ? " · Fast" : "")
-                    : IFL("Not connected", "Не подключена")
+                    : IFL("Not connected", "Не подключена"),
+                "bolt.circle.fill",
+                .systemYellow
             )
         ]
         let row = rows[indexPath.row]
-        return IFValueCell(tableView, identifier: "IFBatteryValue", title: row.0, detail: row.1)
+        let cell = IFValueCell(tableView, identifier: "IFBatteryValue", title: row.0, detail: row.1)
+        cell.imageView?.image = IFAppStyle.symbol(row.2, color: row.3)
+            ?? IFAppStyle.symbol("circle.fill", color: row.3)
+        return cell
     }
 }
 
@@ -494,9 +536,16 @@ final class IFProcessesViewController: IFStyledTableViewController {
             title: process.name,
             detail: "PID \(process.pid) · \(IFDisplayFormatter.percent(process.cpuPercent)) · \(IFDisplayFormatter.bytes(process.residentBytes))"
         )
+        let highlighted = monitor.sustainedHighCPUProcesses().contains(where: { $0.pid == process.pid })
+        let color: UIColor = highlighted
+            ? .systemRed
+            : (mode.selectedSegmentIndex == 0 ? .systemOrange : .systemPurple)
+        let symbol = mode.selectedSegmentIndex == 0 ? "cpu" : "memorychip"
+        cell.imageView?.image = IFAppStyle.symbol(symbol, color: color)
+            ?? IFAppStyle.symbol("gearshape.fill", color: color)
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
-        if monitor.sustainedHighCPUProcesses().contains(where: { $0.pid == process.pid }) {
+        if highlighted {
             cell.textLabel?.textColor = .systemOrange
         }
         return cell
@@ -616,6 +665,8 @@ final class IFCrashLogsViewController: IFStyledTableViewController {
             title: log.name,
             detail: "\(log.kind) · \(formatter.string(from: log.date))"
         )
+        cell.imageView?.image = IFAppStyle.symbol("exclamationmark.triangle.fill", color: .systemRed)
+            ?? IFAppStyle.symbol("doc.text.fill", color: .systemRed)
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
         return cell
@@ -672,6 +723,9 @@ final class IFTweaksViewController: IFStyledTableViewController, UISearchResults
             title: tweak.name,
             detail: "\(tweak.packageIdentifier) \(tweak.packageVersion) · \(state)"
         )
+        let color: UIColor = tweak.isEnabled ? .systemPink : .secondaryLabel
+        cell.imageView?.image = IFAppStyle.symbol("puzzlepiece.extension.fill", color: color)
+            ?? IFAppStyle.symbol("shippingbox.fill", color: color)
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
         cell.textLabel?.textColor = tweak.isEnabled ? .label : .secondaryLabel
@@ -911,44 +965,71 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
             let latency = (details["dnsLatency"] as? NSNumber)?.doubleValue ?? -1
             let httpsLatency = (details["internetLatency"] as? NSNumber)?.doubleValue ?? -1
             let string = { (key: String) -> String in self.details[key] as? String ?? "" }
-            let rows: [(String, String)] = [
-                ("IPv4", string("ipv4")),
-                ("IPv6", string("ipv6")),
-                ("Wi-Fi SSID", string("ssid").isEmpty ? wifiUnavailable : string("ssid")),
-                ("BSSID", string("bssid").isEmpty ? wifiUnavailable : string("bssid")),
+            let rows: [(String, String, String, UIColor)] = [
+                ("IPv4", string("ipv4"), "4.circle.fill", .systemBlue),
+                ("IPv6", string("ipv6"), "6.circle.fill", .systemIndigo),
+                (
+                    "Wi-Fi SSID",
+                    string("ssid").isEmpty ? wifiUnavailable : string("ssid"),
+                    "wifi",
+                    .systemBlue
+                ),
+                (
+                    "BSSID",
+                    string("bssid").isEmpty ? wifiUnavailable : string("bssid"),
+                    "dot.radiowaves.left.and.right",
+                    .systemTeal
+                ),
                 (
                     IFL("Cellular", "Сотовая сеть"),
                     string("radio").isEmpty
                         ? IFL("No active cellular service", "Нет активной сотовой сети")
-                        : string("radio")
+                        : string("radio"),
+                    "antenna.radiowaves.left.and.right",
+                    .systemGreen
                 ),
-                ("VPN", string("vpn").isEmpty ? IFL("None", "Нет") : string("vpn")),
+                (
+                    "VPN",
+                    string("vpn").isEmpty ? IFL("None", "Нет") : string("vpn"),
+                    "lock.shield.fill",
+                    .systemIndigo
+                ),
                 (
                     IFL("DNS latency", "Задержка DNS"),
-                    latency >= 0 ? IFDisplayFormatter.latency(latency) : IFL("Unavailable", "Недоступно")
+                    latency >= 0 ? IFDisplayFormatter.latency(latency) : IFL("Unavailable", "Недоступно"),
+                    "server.rack",
+                    .systemPurple
                 ),
-                (IFL("Internet", "Интернет"), internetValue),
+                (IFL("Internet", "Интернет"), internetValue, "globe", .systemTeal),
                 (
                     IFL("HTTPS latency", "Задержка HTTPS"),
                     httpsLatency >= 0
                         ? IFDisplayFormatter.latency(httpsLatency)
-                        : IFL("Unavailable", "Недоступно")
+                        : IFL("Unavailable", "Недоступно"),
+                    "lock.fill",
+                    .systemGreen
                 )
             ]
             let row = rows[indexPath.row]
-            return IFValueCell(tableView, identifier: "IFNetworkValue", title: row.0, detail: row.1)
+            let cell = IFValueCell(tableView, identifier: "IFNetworkValue", title: row.0, detail: row.1)
+            cell.imageView?.image = IFAppStyle.symbol(row.2, color: row.3)
+                ?? IFAppStyle.symbol("network", color: row.3)
+            return cell
         }
 
         let interfaces = details["interfaces"] as? [String: [String: NSNumber]] ?? [:]
         let names = interfaces.keys.sorted()
         let name = names[indexPath.row]
         let traffic = interfaces[name] ?? [:]
-        return IFValueCell(
+        let cell = IFValueCell(
             tableView,
             identifier: "IFNetworkTraffic",
             title: name,
             detail: "↓ \(IFDisplayFormatter.bytes(traffic["received"]?.uint64Value ?? 0))  ↑ \(IFDisplayFormatter.bytes(traffic["sent"]?.uint64Value ?? 0))"
         )
+        cell.imageView?.image = IFAppStyle.symbol("arrow.up.arrow.down.circle.fill", color: .systemTeal)
+            ?? IFAppStyle.symbol("network", color: .systemTeal)
+        return cell
     }
 }
 
