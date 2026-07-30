@@ -399,6 +399,36 @@ static NSString *IFNetworkServiceIdentifier(NSString *stateKey) {
     return components[3];
 }
 
+static NSSet<NSString *> *IFConfiguredVPNServiceIdentifiers(void) {
+    NSDictionary *preferences = [NSDictionary dictionaryWithContentsOfFile:
+        @"/var/preferences/SystemConfiguration/preferences.plist"];
+    NSDictionary *services = [preferences[@"NetworkServices"] isKindOfClass:[NSDictionary class]]
+        ? preferences[@"NetworkServices"]
+        : @{};
+    NSMutableSet<NSString *> *identifiers = [NSMutableSet set];
+    [services enumerateKeysAndObjectsUsingBlock:^(NSString *identifier, NSDictionary *service, BOOL *stop) {
+        if (![identifier isKindOfClass:[NSString class]] ||
+            ![service isKindOfClass:[NSDictionary class]]) {
+            return;
+        }
+        NSDictionary *interface = [service[@"Interface"] isKindOfClass:[NSDictionary class]]
+            ? service[@"Interface"]
+            : @{};
+        NSDictionary *ipv4 = [service[@"IPv4"] isKindOfClass:[NSDictionary class]]
+            ? service[@"IPv4"]
+            : @{};
+        NSString *type = [interface[@"Type"] isKindOfClass:[NSString class]] ? interface[@"Type"] : @"";
+        NSString *method = [ipv4[@"ConfigMethod"] isKindOfClass:[NSString class]]
+            ? ipv4[@"ConfigMethod"]
+            : @"";
+        if ([type caseInsensitiveCompare:@"VPN"] == NSOrderedSame ||
+            [method caseInsensitiveCompare:@"VPN"] == NSOrderedSame) {
+            [identifiers addObject:identifier];
+        }
+    }];
+    return identifiers;
+}
+
 static BOOL IFNetworkServiceIsVPN(CFTypeRef store,
                                   IFDynamicStoreCopyValueFn copyValue,
                                   NSString *serviceIdentifier) {
@@ -417,7 +447,7 @@ static BOOL IFNetworkServiceIsVPN(CFTypeRef store,
     if (value != NULL) {
         CFRelease(value);
     }
-    return isVPN;
+    return isVPN || [IFConfiguredVPNServiceIdentifiers() containsObject:serviceIdentifier];
 }
 
 NSString *IFActiveVPNInterface(void) {
