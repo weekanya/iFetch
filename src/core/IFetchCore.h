@@ -2,8 +2,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-FOUNDATION_EXPORT NSString *IFActiveVPNInterface(void);
-
 typedef NS_ENUM(NSInteger, IFLanguage) {
     IFLanguageEnglish = 0,
     IFLanguageRussian = 1
@@ -58,7 +56,6 @@ typedef NS_ENUM(NSInteger, IFLanguage) {
 @property (nonatomic, assign) double uploadBytesPerSecond;
 @property (nonatomic, copy) NSString *localIPAddress;
 @property (nonatomic, copy) NSString *activeInterface;
-@property (nonatomic, copy) NSString *vpnInterface;
 @property (nonatomic, copy) NSArray<NSString *> *dnsServers;
 
 @end

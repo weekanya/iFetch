@@ -939,7 +939,7 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if section == 0 {
-            return 9
+            return 8
         }
         return (details["interfaces"] as? [String: Any])?.count ?? 0
     }
@@ -965,7 +965,6 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
             let latency = (details["dnsLatency"] as? NSNumber)?.doubleValue ?? -1
             let httpsLatency = (details["internetLatency"] as? NSNumber)?.doubleValue ?? -1
             let string = { (key: String) -> String in self.details[key] as? String ?? "" }
-            let vpnConnected = !string("vpn").isEmpty
             let rows: [(String, String, String, UIColor)] = [
                 ("IPv4", string("ipv4"), "4.circle.fill", .systemBlue),
                 ("IPv6", string("ipv6"), "6.circle.fill", .systemIndigo),
@@ -988,14 +987,6 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
                         : string("radio"),
                     "antenna.radiowaves.left.and.right",
                     .systemGreen
-                ),
-                (
-                    "VPN",
-                    vpnConnected
-                        ? IFL("Connected", "Подключён")
-                        : IFL("Not connected", "Не подключён"),
-                    "lock.shield.fill",
-                    vpnConnected ? .systemGreen : .secondaryLabel
                 ),
                 (
                     IFL("DNS latency", "Задержка DNS"),

@@ -362,182 +362,18 @@ static NSDictionary<NSString *, NSNumber *> *IFNetworkByteTotals(void) {
     return @{@"in": @(inputBytes), @"out": @(outputBytes)};
 }
 
-static BOOL IFIsVPNInterface(NSString *name) {
-    if (name.length == 0) {
-        return NO;
-    }
-    return [name hasPrefix:@"utun"] || [name hasPrefix:@"tun"] ||
-           [name hasPrefix:@"tap"] || [name hasPrefix:@"ipsec"] ||
-           [name hasPrefix:@"ppp"] || [name hasPrefix:@"wg"];
-}
-
-typedef CFTypeRef (*IFDynamicStoreCreateFn)(CFAllocatorRef, CFStringRef, const void *, const void *);
-typedef CFPropertyListRef (*IFDynamicStoreCopyValueFn)(CFTypeRef, CFStringRef);
-typedef CFArrayRef (*IFDynamicStoreCopyKeyListFn)(CFTypeRef, CFStringRef);
-
-static NSString *IFVPNInterfaceFromState(NSDictionary *state) {
-    if (![state isKindOfClass:[NSDictionary class]]) {
-        return @"";
-    }
-    for (NSString *key in @[@"PrimaryInterface", @"InterfaceName", @"DeviceName"]) {
-        NSString *candidate = [state[key] isKindOfClass:[NSString class]] ? state[key] : @"";
-        if (IFIsVPNInterface(candidate)) {
-            return candidate;
-        }
-    }
-    return @"";
-}
-
-static NSString *IFNetworkServiceIdentifier(NSString *stateKey) {
-    NSArray<NSString *> *components = [stateKey componentsSeparatedByString:@"/"];
-    if (components.count < 5 ||
-        ![components[0] isEqualToString:@"State:"] ||
-        ![components[1] isEqualToString:@"Network"] ||
-        ![components[2] isEqualToString:@"Service"]) {
-        return @"";
-    }
-    return components[3];
-}
-
-static NSSet<NSString *> *IFConfiguredVPNServiceIdentifiers(void) {
-    NSDictionary *preferences = [NSDictionary dictionaryWithContentsOfFile:
-        @"/var/preferences/SystemConfiguration/preferences.plist"];
-    NSDictionary *services = [preferences[@"NetworkServices"] isKindOfClass:[NSDictionary class]]
-        ? preferences[@"NetworkServices"]
-        : @{};
-    NSMutableSet<NSString *> *identifiers = [NSMutableSet set];
-    [services enumerateKeysAndObjectsUsingBlock:^(NSString *identifier, NSDictionary *service, BOOL *stop) {
-        if (![identifier isKindOfClass:[NSString class]] ||
-            ![service isKindOfClass:[NSDictionary class]]) {
-            return;
-        }
-        NSDictionary *interface = [service[@"Interface"] isKindOfClass:[NSDictionary class]]
-            ? service[@"Interface"]
-            : @{};
-        NSDictionary *ipv4 = [service[@"IPv4"] isKindOfClass:[NSDictionary class]]
-            ? service[@"IPv4"]
-            : @{};
-        NSString *type = [interface[@"Type"] isKindOfClass:[NSString class]] ? interface[@"Type"] : @"";
-        NSString *method = [ipv4[@"ConfigMethod"] isKindOfClass:[NSString class]]
-            ? ipv4[@"ConfigMethod"]
-            : @"";
-        if ([type caseInsensitiveCompare:@"VPN"] == NSOrderedSame ||
-            [method caseInsensitiveCompare:@"VPN"] == NSOrderedSame) {
-            [identifiers addObject:identifier];
-        }
-    }];
-    return identifiers;
-}
-
-static BOOL IFNetworkServiceIsVPN(CFTypeRef store,
-                                  IFDynamicStoreCopyValueFn copyValue,
-                                  NSString *serviceIdentifier) {
-    if (store == NULL || copyValue == NULL || serviceIdentifier.length == 0) {
-        return NO;
-    }
-
-    NSString *key = [NSString stringWithFormat:@"Setup:/Network/Service/%@/Interface", serviceIdentifier];
-    CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
-    BOOL isVPN = NO;
-    if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
-        NSDictionary *interface = (__bridge NSDictionary *)value;
-        NSString *type = [interface[@"Type"] isKindOfClass:[NSString class]] ? interface[@"Type"] : @"";
-        isVPN = [type caseInsensitiveCompare:@"VPN"] == NSOrderedSame;
-    }
-    if (value != NULL) {
-        CFRelease(value);
-    }
-    return isVPN || [IFConfiguredVPNServiceIdentifiers() containsObject:serviceIdentifier];
-}
-
-NSString *IFActiveVPNInterface(void) {
-    IFDynamicStoreCreateFn createStore = (IFDynamicStoreCreateFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCreate");
-    IFDynamicStoreCopyValueFn copyValue = (IFDynamicStoreCopyValueFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCopyValue");
-    IFDynamicStoreCopyKeyListFn copyKeyList =
-        (IFDynamicStoreCopyKeyListFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCopyKeyList");
-    if (createStore == NULL || copyValue == NULL || copyKeyList == NULL) {
-        return @"";
-    }
-
-    CFTypeRef store = createStore(kCFAllocatorDefault, CFSTR("iFetch VPN"), NULL, NULL);
-    if (store == NULL) {
-        return @"";
-    }
-
-    NSString *result = @"";
-    for (NSString *key in @[@"State:/Network/Global/IPv4", @"State:/Network/Global/IPv6"]) {
-        CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
-        if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
-            NSDictionary *state = (__bridge NSDictionary *)value;
-            NSString *candidate = IFVPNInterfaceFromState(state);
-            NSString *serviceIdentifier = [state[@"PrimaryService"] isKindOfClass:[NSString class]]
-                ? state[@"PrimaryService"]
-                : @"";
-            if (candidate.length > 0 &&
-                IFNetworkServiceIsVPN(store, copyValue, serviceIdentifier)) {
-                result = candidate;
-            }
-        }
-        if (value != NULL) {
-            CFRelease(value);
-        }
-        if (result.length > 0) {
-            break;
-        }
-    }
-
-    if (result.length == 0) {
-        for (NSString *pattern in @[@"State:/Network/Service/.*/IPv4", @"State:/Network/Service/.*/IPv6"]) {
-            CFArrayRef keys = copyKeyList(store, (__bridge CFStringRef)pattern);
-            if (keys == NULL) {
-                continue;
-            }
-            for (NSString *key in (__bridge NSArray *)keys) {
-                CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
-                if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
-                    NSDictionary *state = (__bridge NSDictionary *)value;
-                    NSArray *addresses = [state[@"Addresses"] isKindOfClass:[NSArray class]]
-                        ? state[@"Addresses"]
-                        : @[];
-                    NSString *candidate = IFVPNInterfaceFromState(state);
-                    NSString *serviceIdentifier = IFNetworkServiceIdentifier(key);
-                    if (candidate.length > 0 &&
-                        addresses.count > 0 &&
-                        IFNetworkServiceIsVPN(store, copyValue, serviceIdentifier)) {
-                        result = candidate;
-                    }
-                }
-                if (value != NULL) {
-                    CFRelease(value);
-                }
-                if (result.length > 0) {
-                    break;
-                }
-            }
-            CFRelease(keys);
-            if (result.length > 0) {
-                break;
-            }
-        }
-    }
-
-    CFRelease(store);
-    return result;
-}
-
 static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) != 0) {
         NSString *unavailable = [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"];
         NSString *none = [IFLanguageManager english:@"None" russian:@"Нет"];
-        return @{@"ip": unavailable, @"interface": none, @"vpn": none};
+        return @{@"ip": unavailable, @"interface": none};
     }
 
     NSString *preferredIP = nil;
     NSString *preferredInterface = nil;
     NSString *fallbackIP = nil;
     NSString *fallbackInterface = nil;
-    NSString *vpnInterface = IFActiveVPNInterface();
 
     for (struct ifaddrs *cursor = interfaces; cursor != NULL; cursor = cursor->ifa_next) {
         if (cursor->ifa_addr == NULL || cursor->ifa_name == NULL ||
@@ -567,8 +403,7 @@ static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
 
     return @{
         @"ip": preferredIP ?: fallbackIP ?: [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"],
-        @"interface": preferredInterface ?: fallbackInterface ?: [IFLanguageManager english:@"None" russian:@"Нет"],
-        @"vpn": vpnInterface.length > 0 ? vpnInterface : [IFLanguageManager english:@"None" russian:@"Нет"]
+        @"interface": preferredInterface ?: fallbackInterface ?: [IFLanguageManager english:@"None" russian:@"Нет"]
     };
 }
 
@@ -638,7 +473,6 @@ static NSArray<NSString *> *IFDNSServers(void) {
     NSDictionary *details = IFActiveNetworkDetails();
     snapshot.localIPAddress = details[@"ip"];
     snapshot.activeInterface = details[@"interface"];
-    snapshot.vpnInterface = details[@"vpn"];
     snapshot.dnsServers = IFDNSServers();
 
     self.previousInputBytes = inputBytes;

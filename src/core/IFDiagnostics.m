@@ -574,7 +574,6 @@ static double IFSystemCPUPercent(void) {
 + (NSDictionary<NSString *, id> *)extendedNetworkDetails {
     NSString *ipv4 = @"";
     NSString *ipv6 = @"";
-    NSString *vpnInterface = IFActiveVPNInterface();
     NSMutableDictionary<NSString *, NSDictionary *> *interfaces = [NSMutableDictionary dictionary];
     struct ifaddrs *addresses = NULL;
     if (getifaddrs(&addresses) == 0) {
@@ -638,7 +637,6 @@ static double IFSystemCPUPercent(void) {
         @"ssid": ssid,
         @"bssid": bssid,
         @"radio": radio,
-        @"vpn": vpnInterface,
         @"interfaces": interfaces,
         @"dnsLatency": @(dnsMilliseconds),
         @"internetAvailable": httpsProbe[@"available"],

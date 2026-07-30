@@ -88,7 +88,7 @@ static NSDictionary *IFBuildSnapshot(IFNetworkMonitor *networkMonitor,
         @"network": @{@"download_bytes_per_second": @(network.downloadBytesPerSecond),
                        @"upload_bytes_per_second": @(network.uploadBytesPerSecond),
                        @"local_ip": network.localIPAddress, @"public_ip": publicIP,
-                       @"interface": network.activeInterface, @"vpn": network.vpnInterface,
+                       @"interface": network.activeInterface,
                        @"dns": network.dnsServers ?: @[], @"details": extendedNetwork},
         @"processes": @{@"top_cpu": topCPU, @"top_memory": topMemory}
     };
@@ -152,7 +152,6 @@ static void IFPrintSnapshot(NSDictionary *snapshot, BOOL color, NSUInteger proce
         IFPrintLine(IFT(@"Local IP", @"Локальный IP"), network[@"local_ip"], color);
         IFPrintLine(IFT(@"Public IP", @"Публичный IP"), network[@"public_ip"], color);
         IFPrintLine(IFT(@"Interface", @"Интерфейс"), network[@"interface"], color);
-        IFPrintLine(@"VPN", network[@"vpn"], color);
         IFPrintLine(@"DNS", [network[@"dns"] count] ? [network[@"dns"] componentsJoinedByString:@", "] : IFT(@"Unavailable", @"Недоступно"), color);
         IFPrintLine(@"IPv6", network[@"details"][@"ipv6"], color);
         IFPrintLine(@"Wi-Fi", network[@"details"][@"ssid"], color);
