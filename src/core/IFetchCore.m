@@ -371,6 +371,10 @@ static BOOL IFIsVPNInterface(NSString *name) {
            [name hasPrefix:@"ppp"] || [name hasPrefix:@"wg"];
 }
 
+typedef CFTypeRef (*IFDynamicStoreCreateFn)(CFAllocatorRef, CFStringRef, const void *, const void *);
+typedef CFPropertyListRef (*IFDynamicStoreCopyValueFn)(CFTypeRef, CFStringRef);
+typedef CFArrayRef (*IFDynamicStoreCopyKeyListFn)(CFTypeRef, CFStringRef);
+
 static NSString *IFVPNInterfaceFromState(NSDictionary *state) {
     if (![state isKindOfClass:[NSDictionary class]]) {
         return @"";
@@ -384,10 +388,39 @@ static NSString *IFVPNInterfaceFromState(NSDictionary *state) {
     return @"";
 }
 
+static NSString *IFNetworkServiceIdentifier(NSString *stateKey) {
+    NSArray<NSString *> *components = [stateKey componentsSeparatedByString:@"/"];
+    if (components.count < 5 ||
+        ![components[0] isEqualToString:@"State:"] ||
+        ![components[1] isEqualToString:@"Network"] ||
+        ![components[2] isEqualToString:@"Service"]) {
+        return @"";
+    }
+    return components[3];
+}
+
+static BOOL IFNetworkServiceIsVPN(CFTypeRef store,
+                                  IFDynamicStoreCopyValueFn copyValue,
+                                  NSString *serviceIdentifier) {
+    if (store == NULL || copyValue == NULL || serviceIdentifier.length == 0) {
+        return NO;
+    }
+
+    NSString *key = [NSString stringWithFormat:@"Setup:/Network/Service/%@/Interface", serviceIdentifier];
+    CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
+    BOOL isVPN = NO;
+    if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
+        NSDictionary *interface = (__bridge NSDictionary *)value;
+        NSString *type = [interface[@"Type"] isKindOfClass:[NSString class]] ? interface[@"Type"] : @"";
+        isVPN = [type caseInsensitiveCompare:@"VPN"] == NSOrderedSame;
+    }
+    if (value != NULL) {
+        CFRelease(value);
+    }
+    return isVPN;
+}
+
 NSString *IFActiveVPNInterface(void) {
-    typedef CFTypeRef (*IFDynamicStoreCreateFn)(CFAllocatorRef, CFStringRef, const void *, const void *);
-    typedef CFPropertyListRef (*IFDynamicStoreCopyValueFn)(CFTypeRef, CFStringRef);
-    typedef CFArrayRef (*IFDynamicStoreCopyKeyListFn)(CFTypeRef, CFStringRef);
     IFDynamicStoreCreateFn createStore = (IFDynamicStoreCreateFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCreate");
     IFDynamicStoreCopyValueFn copyValue = (IFDynamicStoreCopyValueFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCopyValue");
     IFDynamicStoreCopyKeyListFn copyKeyList =
@@ -405,32 +438,21 @@ NSString *IFActiveVPNInterface(void) {
     for (NSString *key in @[@"State:/Network/Global/IPv4", @"State:/Network/Global/IPv6"]) {
         CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
         if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
-            result = IFVPNInterfaceFromState((__bridge NSDictionary *)value);
+            NSDictionary *state = (__bridge NSDictionary *)value;
+            NSString *candidate = IFVPNInterfaceFromState(state);
+            NSString *serviceIdentifier = [state[@"PrimaryService"] isKindOfClass:[NSString class]]
+                ? state[@"PrimaryService"]
+                : @"";
+            if (candidate.length > 0 &&
+                IFNetworkServiceIsVPN(store, copyValue, serviceIdentifier)) {
+                result = candidate;
+            }
         }
         if (value != NULL) {
             CFRelease(value);
         }
         if (result.length > 0) {
             break;
-        }
-    }
-
-    if (result.length == 0) {
-        CFPropertyListRef value = copyValue(store, CFSTR("State:/Network/Global/Proxies"));
-        if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
-            NSDictionary *proxies = (__bridge NSDictionary *)value;
-            NSDictionary *scoped = [proxies[@"__SCOPED__"] isKindOfClass:[NSDictionary class]]
-                ? proxies[@"__SCOPED__"]
-                : @{};
-            for (NSString *name in scoped) {
-                if (IFIsVPNInterface(name)) {
-                    result = name;
-                    break;
-                }
-            }
-        }
-        if (value != NULL) {
-            CFRelease(value);
         }
     }
 
@@ -448,7 +470,10 @@ NSString *IFActiveVPNInterface(void) {
                         ? state[@"Addresses"]
                         : @[];
                     NSString *candidate = IFVPNInterfaceFromState(state);
-                    if (candidate.length > 0 && addresses.count > 0) {
+                    NSString *serviceIdentifier = IFNetworkServiceIdentifier(key);
+                    if (candidate.length > 0 &&
+                        addresses.count > 0 &&
+                        IFNetworkServiceIsVPN(store, copyValue, serviceIdentifier)) {
                         result = candidate;
                     }
                 }
