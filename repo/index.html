@@ -79,6 +79,7 @@ a {
 
 img {
   display: block;
+  height: auto;
   max-width: 100%;
 }
 
@@ -141,6 +142,8 @@ img {
 .brand img {
   width: 44px;
   height: 44px;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 12px;
 }
 
@@ -397,6 +400,8 @@ img {
 .showcase-top img {
   width: 66px;
   height: 66px;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 18px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
 }
@@ -590,6 +595,8 @@ img {
 .package-icon {
   width: 62px;
   height: 62px;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 16px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.26);
 }
@@ -770,21 +777,25 @@ img {
 
 .screenshots {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   justify-content: center;
   gap: 18px;
-  height: 470px;
+  height: auto;
 }
 
 .screenshots img {
+  flex: 0 1 230px;
   width: min(48%, 230px);
+  height: auto;
+  aspect-ratio: 750 / 1334;
+  object-fit: contain;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 25px;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.26);
 }
 
 .screenshots img:first-child {
-  transform: translateY(24px);
+  transform: none;
 }
 
 .screenshots img:last-child {
@@ -824,6 +835,8 @@ img {
 .footer-brand img {
   width: 38px;
   height: 38px;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 10px;
 }
 
@@ -925,6 +938,8 @@ img {
 .modal-hero > img {
   width: 82px;
   height: 82px;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 21px;
   box-shadow: 0 15px 36px rgba(0, 0, 0, 0.32);
 }
@@ -1132,6 +1147,11 @@ img {
 }
 
 .modal-gallery img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 750 / 1334;
+  object-fit: contain;
+  align-self: start;
   border: 1px solid var(--border);
   border-radius: 18px;
 }
@@ -1201,7 +1221,7 @@ input:focus-visible,
   }
 
   .screenshots {
-    height: 520px;
+    height: auto;
   }
 }
 
@@ -1318,7 +1338,7 @@ input:focus-visible,
   }
 
   .screenshots {
-    height: 440px;
+    height: auto;
     gap: 10px;
   }
 
