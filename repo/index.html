@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#061526">
+  <meta name="theme-color" content="#0b0c0f">
   <meta name="description" content="Rootless and RootHide iOS utilities for Sileo. Home of iFetch system diagnostics for iOS 14–17.">
   <meta property="og:title" content="weekanya Repository">
   <meta property="og:description" content="Rootless and RootHide iOS utilities, diagnostics and system tools.">
@@ -17,26 +17,26 @@
   <style>
 :root {
   color-scheme: dark;
-  --background: #04101d;
-  --background-soft: #071827;
-  --surface: rgba(12, 34, 52, 0.72);
-  --surface-strong: #0b2235;
-  --surface-light: rgba(255, 255, 255, 0.07);
-  --border: rgba(137, 205, 233, 0.14);
-  --border-strong: rgba(99, 220, 255, 0.3);
-  --text: #f5fbff;
-  --muted: #8faabb;
-  --cyan: #60ddff;
-  --cyan-bright: #b8f3ff;
-  --blue: #2a84ff;
-  --green: #45e19a;
-  --orange: #ffae57;
-  --purple: #b287ff;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
-  --radius-large: 30px;
-  --radius-medium: 20px;
-  --radius-small: 13px;
-  --shell: min(1160px, calc(100vw - 40px));
+  --background: #0b0c0f;
+  --background-soft: #101216;
+  --surface: #15171c;
+  --surface-strong: #191c22;
+  --surface-light: rgba(255, 255, 255, 0.055);
+  --border: #292d35;
+  --border-strong: #3d4654;
+  --text: #f4f4f5;
+  --muted: #9a9da5;
+  --cyan: #78b7ff;
+  --cyan-bright: #b9d9ff;
+  --blue: #0a84ff;
+  --green: #44cf8b;
+  --orange: #f4a261;
+  --purple: #a88cff;
+  --shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+  --radius-large: 24px;
+  --radius-medium: 16px;
+  --radius-small: 10px;
+  --shell: min(1080px, calc(100vw - 40px));
 }
 
 * {
@@ -52,11 +52,7 @@ body {
   min-width: 320px;
   margin: 0;
   overflow-x: hidden;
-  background:
-    linear-gradient(rgba(85, 206, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(85, 206, 255, 0.025) 1px, transparent 1px),
-    radial-gradient(circle at 50% -20%, #113b58 0, var(--background) 43%);
-  background-size: 48px 48px, 48px 48px, auto;
+  background: var(--background);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -86,20 +82,24 @@ img {
   max-width: 100%;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .shell {
   width: var(--shell);
   margin-inline: auto;
 }
 
 .ambient {
-  position: fixed;
-  z-index: -1;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  opacity: 0.18;
-  filter: blur(110px);
-  pointer-events: none;
+  display: none;
 }
 
 .ambient-one {
@@ -121,16 +121,14 @@ img {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  width: min(1240px, calc(100vw - 24px));
-  min-height: 74px;
-  margin: 12px auto 0;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: rgba(4, 16, 29, 0.72);
-  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.22);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  backdrop-filter: blur(24px) saturate(1.4);
+  width: 100%;
+  min-height: 68px;
+  margin: 0;
+  padding: 10px max(20px, calc((100vw - 1080px) / 2));
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 12, 15, 0.88);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
 }
 
 .brand {
@@ -144,7 +142,6 @@ img {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  box-shadow: 0 8px 22px rgba(20, 168, 235, 0.26);
 }
 
 .brand span {
@@ -166,15 +163,15 @@ img {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.025);
+  padding: 0;
 }
 
 .header-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding: 8px 13px;
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
@@ -192,11 +189,13 @@ img {
   gap: 3px;
   padding: 4px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 .language-switch button {
+  min-width: 44px;
+  min-height: 44px;
   padding: 6px 9px;
   border: 0;
   border-radius: 8px;
@@ -208,16 +207,16 @@ img {
 }
 
 .language-switch button.active {
-  background: rgba(96, 221, 255, 0.16);
-  color: var(--cyan-bright);
+  background: #2b3038;
+  color: var(--text);
 }
 
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
   align-items: center;
-  min-height: 650px;
-  padding-block: 70px 52px;
+  min-height: 590px;
+  padding-block: 72px 48px;
 }
 
 .hero-copy {
@@ -240,26 +239,19 @@ img {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  padding: 8px 12px;
-  border: 1px solid rgba(96, 221, 255, 0.18);
-  border-radius: 999px;
-  background: rgba(53, 187, 231, 0.07);
+  padding: 0;
 }
 
 .status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 5px rgba(69, 225, 154, 0.1), 0 0 15px var(--green);
+  display: none;
 }
 
 .hero h1 {
   max-width: 760px;
-  margin: 24px 0 20px;
-  font-size: clamp(48px, 6vw, 78px);
-  line-height: 0.99;
-  letter-spacing: -0.058em;
+  margin: 20px 0 18px;
+  font-size: clamp(44px, 5.5vw, 66px);
+  line-height: 1.02;
+  letter-spacing: -0.05em;
 }
 
 .hero-copy > p {
@@ -285,14 +277,15 @@ img {
   min-height: 48px;
   padding: 0 18px;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: 11px;
   cursor: pointer;
   font-weight: 720;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  touch-action: manipulation;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
 
 .button:hover {
-  transform: translateY(-2px);
+  opacity: 0.9;
 }
 
 .button svg {
@@ -306,13 +299,14 @@ img {
 }
 
 .button-primary {
-  background: linear-gradient(135deg, #6ce6ff, #288dff);
-  box-shadow: 0 12px 35px rgba(34, 149, 255, 0.26);
-  color: #001522;
+  background: var(--blue);
+  box-shadow: none;
+  color: #ffffff;
 }
 
 .button-primary:hover {
-  box-shadow: 0 16px 42px rgba(34, 149, 255, 0.34);
+  background: #218fff;
+  box-shadow: none;
 }
 
 .button-secondary {
@@ -337,8 +331,8 @@ img {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 13px;
-  background: rgba(2, 11, 20, 0.5);
-  color: #b4c9d5;
+  background: var(--surface);
+  color: #b8bac1;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
 }
@@ -370,41 +364,26 @@ img {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 430px;
+  min-height: 360px;
 }
 
 .device-glow {
-  position: absolute;
-  width: 340px;
-  height: 340px;
-  border-radius: 50%;
-  background: rgba(38, 166, 255, 0.22);
-  filter: blur(70px);
+  display: none;
 }
 
 .showcase-card {
   position: relative;
   width: min(100%, 410px);
-  padding: 25px;
+  padding: 26px;
   overflow: hidden;
-  border: 1px solid rgba(122, 222, 255, 0.2);
-  border-radius: 32px;
-  background:
-    linear-gradient(150deg, rgba(19, 58, 82, 0.92), rgba(5, 23, 38, 0.94)),
-    var(--surface-strong);
-  box-shadow: var(--shadow), inset 0 1px rgba(255, 255, 255, 0.08);
-  transform: rotate(2.5deg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .showcase-card::before {
-  position: absolute;
-  top: -130px;
-  right: -90px;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(90, 225, 255, 0.24), transparent 66%);
-  content: "";
+  display: none;
 }
 
 .showcase-top {
@@ -443,79 +422,37 @@ img {
 .showcase-card > p {
   position: relative;
   margin: 22px 0;
-  color: #aec4d1;
+  color: var(--muted);
   font-size: 14px;
   line-height: 1.55;
 }
 
-.metric-preview {
-  position: relative;
+.showcase-details {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--border);
 }
 
-.metric-preview > div {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  padding: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.055);
+.showcase-details > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  background: var(--surface-strong);
 }
 
-.metric-preview span {
+.showcase-details span {
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.metric-preview strong {
   font-size: 12px;
 }
 
-.metric-preview i {
-  grid-column: 1 / -1;
-  height: 5px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
-}
-
-.metric-preview i::after {
-  display: block;
-  width: var(--value);
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--blue), var(--cyan));
-  content: "";
-}
-
-.showcase-footer {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  margin-top: 19px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  color: var(--muted);
-  font-size: 10px;
+.showcase-details strong {
+  font-size: 12px;
   font-weight: 650;
-}
-
-.showcase-footer > span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 9px var(--green);
 }
 
 .repo-stats {
@@ -523,8 +460,7 @@ img {
   grid-template-columns: repeat(4, 1fr);
   border: 1px solid var(--border);
   border-radius: var(--radius-medium);
-  background: rgba(8, 27, 43, 0.64);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
+  background: var(--surface);
 }
 
 .repo-stats > div {
@@ -549,7 +485,7 @@ img {
 }
 
 .packages-section {
-  padding-block: 120px;
+  padding-block: 96px;
 }
 
 .section-heading {
@@ -585,8 +521,8 @@ img {
   min-height: 48px;
   padding: 0 15px;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 11px;
+  background: var(--surface);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
@@ -611,6 +547,7 @@ img {
   outline: 0;
   background: transparent;
   color: var(--text);
+  font-size: 16px;
 }
 
 .search-box input::placeholder {
@@ -619,7 +556,7 @@ img {
 
 .package-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
   gap: 16px;
 }
 
@@ -628,35 +565,26 @@ img {
   display: grid;
   grid-template-columns: 62px 1fr;
   gap: 17px;
-  min-height: 255px;
+  min-height: 238px;
   padding: 22px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-medium);
-  background: linear-gradient(155deg, rgba(14, 43, 64, 0.72), rgba(6, 23, 37, 0.78));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
+  background: var(--surface);
   cursor: pointer;
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .package-card::after {
-  position: absolute;
-  right: -70px;
-  bottom: -90px;
-  width: 190px;
-  height: 190px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(35, 163, 255, 0.13), transparent 65%);
-  content: "";
-  pointer-events: none;
+  display: none;
 }
 
 .package-card:hover,
 .package-card:focus-visible {
   border-color: var(--border-strong);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24), inset 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
   outline: none;
-  transform: translateY(-5px);
+  transform: translateY(-2px);
 }
 
 .package-icon {
@@ -698,7 +626,7 @@ img {
   min-height: 65px;
   margin: 2px 0 0;
   overflow: hidden;
-  color: #a1b8c6;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
   -webkit-box-orient: vertical;
@@ -716,7 +644,7 @@ img {
   padding: 6px 8px;
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-strong);
   color: var(--muted);
   font-size: 9px;
   font-weight: 700;
@@ -730,7 +658,7 @@ img {
   align-self: end;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.065);
-  color: var(--cyan-bright);
+  color: var(--cyan);
   font-size: 11px;
   font-weight: 750;
 }
@@ -793,6 +721,15 @@ img {
   font-size: 44px;
 }
 
+.empty-state > svg {
+  width: 38px;
+  margin: 0 auto;
+  fill: none;
+  stroke: var(--cyan);
+  stroke-linecap: round;
+  stroke-width: 1.6;
+}
+
 .empty-state h3 {
   margin: 12px 0 4px;
 }
@@ -806,15 +743,12 @@ img {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
   align-items: center;
-  gap: 76px;
-  padding: 70px;
+  gap: 56px;
+  padding: 52px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-large);
-  background:
-    radial-gradient(circle at 100% 0, rgba(57, 174, 255, 0.18), transparent 38%),
-    linear-gradient(145deg, rgba(12, 39, 59, 0.88), rgba(5, 21, 34, 0.92));
-  box-shadow: var(--shadow);
+  background: var(--surface);
 }
 
 .feature-list {
@@ -826,10 +760,10 @@ img {
 
 .feature-list span {
   padding: 9px 11px;
-  border: 1px solid rgba(96, 221, 255, 0.13);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(96, 221, 255, 0.055);
-  color: #b6d4e2;
+  background: var(--surface-strong);
+  color: #c5c7cc;
   font-size: 11px;
   font-weight: 700;
 }
@@ -840,22 +774,21 @@ img {
   justify-content: center;
   gap: 18px;
   height: 470px;
-  perspective: 1000px;
 }
 
 .screenshots img {
   width: min(48%, 230px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 25px;
-  box-shadow: 0 25px 55px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.26);
 }
 
 .screenshots img:first-child {
-  transform: rotateY(4deg) translateY(34px);
+  transform: translateY(24px);
 }
 
 .screenshots img:last-child {
-  transform: rotateY(-4deg);
+  transform: none;
 }
 
 .install-section {
@@ -865,9 +798,9 @@ img {
   gap: 30px;
   margin-block: 120px 70px;
   padding: 40px 44px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
   border-radius: var(--radius-medium);
-  background: linear-gradient(110deg, rgba(22, 103, 145, 0.3), rgba(12, 37, 57, 0.72));
+  background: var(--surface);
 }
 
 .install-section h2 {
@@ -906,6 +839,12 @@ img {
   color: var(--text);
 }
 
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 .package-modal {
   position: fixed;
   inset: 0;
@@ -925,10 +864,10 @@ img {
   width: 100%;
   height: 100%;
   border: 0;
-  background: rgba(0, 6, 12, 0.75);
+  background: rgba(0, 0, 0, 0.68);
   cursor: default;
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .modal-panel {
@@ -937,12 +876,10 @@ img {
   max-height: min(820px, calc(100vh - 44px));
   padding: 30px;
   overflow: auto;
-  border: 1px solid var(--border-strong);
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at 90% 0, rgba(63, 186, 255, 0.18), transparent 35%),
-    #071b2a;
-  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--background-soft);
+  box-shadow: 0 36px 100px rgba(0, 0, 0, 0.48);
   animation: modal-in 180ms ease-out;
 }
 
@@ -960,8 +897,8 @@ img {
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.055);
@@ -1007,7 +944,7 @@ img {
 
 .modal-description {
   margin: 26px 0 20px;
-  color: #aec5d2;
+  color: var(--muted);
   font-size: 15px;
   line-height: 1.65;
 }
@@ -1026,12 +963,12 @@ img {
 .package-metadata > div {
   min-width: 0;
   padding: 13px 15px;
-  background: rgba(7, 27, 42, 0.96);
+  background: var(--surface);
 }
 
 .package-metadata dt {
   margin-bottom: 4px;
-  color: #7291a2;
+  color: var(--muted);
   font-size: 9px;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -1041,7 +978,7 @@ img {
 .package-metadata dd {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #dbeaf1;
+  color: var(--text);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1051,6 +988,136 @@ img {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 20px;
+}
+
+.modal-actions .button[aria-expanded="true"] {
+  border-color: var(--border-strong);
+  background: #242831;
+}
+
+.modal-option-panel {
+  margin-top: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.modal-option-panel[hidden] {
+  display: none;
+}
+
+.modal-option-panel h3 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.modal-option-panel > p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.download-options-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.download-option {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background-soft);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.download-option:hover,
+.download-option:focus-visible {
+  border-color: var(--border-strong);
+  background: #1b1e24;
+  outline: none;
+}
+
+.download-option-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(10, 132, 255, 0.14);
+  color: var(--cyan);
+}
+
+.download-option-icon svg {
+  width: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.download-option-copy {
+  min-width: 0;
+}
+
+.download-option-copy strong,
+.download-option-copy span {
+  display: block;
+}
+
+.download-option-copy strong {
+  margin-bottom: 3px;
+  font-size: 14px;
+}
+
+.download-option-copy span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.download-option code {
+  color: #c7c9cf;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.description-list {
+  display: grid;
+  gap: 9px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.description-list li {
+  position: relative;
+  padding-left: 18px;
+  color: #c9cbd0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.description-list li::before {
+  position: absolute;
+  top: 8px;
+  left: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  content: "";
 }
 
 .modal-gallery {
@@ -1092,6 +1159,14 @@ img {
 .toast.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
 }
 
 @media (max-width: 980px) {
@@ -1136,10 +1211,11 @@ img {
   }
 
   .site-header {
-    width: calc(100vw - 16px);
+    width: 100%;
     min-height: 66px;
-    margin-top: 8px;
-    border-radius: 17px;
+    margin: 0;
+    padding-inline: 12px;
+    border-radius: 0;
   }
 
   .brand img {
@@ -1236,9 +1312,9 @@ img {
   }
 
   .about-section {
-    width: calc(100% - 16px);
+    width: var(--shell);
     padding: 38px 22px 0;
-    border-radius: 24px;
+    border-radius: 18px;
   }
 
   .screenshots {
@@ -1270,7 +1346,7 @@ img {
 
   .modal-panel {
     width: 100%;
-    max-height: 92vh;
+    max-height: 92dvh;
     padding: 25px 19px calc(25px + env(safe-area-inset-bottom));
     border-right: 0;
     border-bottom: 0;
@@ -1306,6 +1382,14 @@ img {
   .modal-actions .button {
     flex: 1 1 100%;
   }
+
+  .download-option {
+    grid-template-columns: 42px 1fr;
+  }
+
+  .download-option code {
+    grid-column: 2;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1325,7 +1409,7 @@ img {
   <div class="ambient ambient-two"></div>
   <header class="site-header">
     <a class="brand" href="./" aria-label="weekanya Repository">
-      <img src="assets/CydiaIcon@2x.png" alt="">
+      <img src="assets/CydiaIcon@2x.png" width="128" height="128" alt="">
       <span>
         <strong>weekanya</strong>
         <small>iOS Repository</small>
@@ -1374,7 +1458,7 @@ img {
         <div class="device-glow"></div>
         <div class="showcase-card">
           <div class="showcase-top">
-            <img src="assets/ifetch-icon.png" alt="iFetch">
+            <img src="assets/ifetch-icon.png" width="1024" height="1024" alt="iFetch">
             <div>
               <span class="showcase-label" data-i18n="featuredPackage">Featured package</span>
               <h2>iFetch</h2>
@@ -1382,21 +1466,15 @@ img {
             <span class="version-pill" id="hero-version">5.1.1</span>
           </div>
           <p data-i18n="showcaseText">Live diagnostics, widgets, process control, crash reports and a full terminal client.</p>
-          <div class="metric-preview">
+          <div class="showcase-details">
             <div>
-              <span>CPU</span>
-              <strong>24%</strong>
-              <i style="--value: 24%"></i>
+              <span data-i18n="statCompatibility">Compatibility</span>
+              <strong>iOS 14–17</strong>
             </div>
             <div>
-              <span>RAM</span>
-              <strong>61%</strong>
-              <i style="--value: 61%"></i>
+              <span data-i18n="statEnvironment">Environment</span>
+              <strong>Rootless · RootHide</strong>
             </div>
-          </div>
-          <div class="showcase-footer">
-            <span><i class="live-dot"></i><span data-i18n="liveMonitoring">Live monitoring</span></span>
-            <span>arm64 · arm64e</span>
           </div>
         </div>
       </div>
@@ -1429,6 +1507,7 @@ img {
           <p data-i18n="packagesDescription">Select a package to see its version, requirements and complete description.</p>
         </div>
         <label class="search-box">
+          <span class="sr-only" data-i18n="searchLabel">Search packages</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
           <input id="package-search" type="search" autocomplete="off" data-i18n-placeholder="searchPlaceholder" placeholder="Search packages">
         </label>
@@ -1443,7 +1522,7 @@ img {
         </article>
       </div>
       <div class="empty-state" id="empty-state" hidden>
-        <span>⌕</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <h3 data-i18n="emptyTitle">Nothing found</h3>
         <p data-i18n="emptyText">Try a different package name or identifier.</p>
       </div>
@@ -1464,8 +1543,8 @@ img {
         </div>
       </div>
       <div class="screenshots" id="screenshots">
-        <img src="assets/en1.png" data-en-src="assets/en1.png" data-ru-src="assets/ru1.png" alt="iFetch overview">
-        <img src="assets/en2.png" data-en-src="assets/en2.png" data-ru-src="assets/ru2.png" alt="iFetch diagnostics">
+        <img src="assets/en1.png" data-en-src="assets/en1.png" data-ru-src="assets/ru1.png" width="750" height="1334" loading="lazy" alt="iFetch overview">
+        <img src="assets/en2.png" data-en-src="assets/en2.png" data-ru-src="assets/ru2.png" width="750" height="1334" loading="lazy" alt="iFetch diagnostics">
       </div>
     </section>
 
@@ -1483,7 +1562,7 @@ img {
 
   <footer class="site-footer shell">
     <div class="brand footer-brand">
-      <img src="assets/CydiaIcon.png" alt="">
+      <img src="assets/CydiaIcon.png" width="64" height="64" alt="">
       <span>
         <strong>weekanya</strong>
         <small data-i18n="footerText">Rootless + RootHide Repository</small>
@@ -1497,13 +1576,13 @@ img {
   </footer>
 
   <div class="package-modal" id="package-modal" hidden>
-    <button class="modal-backdrop" type="button" data-close-modal aria-label="Close"></button>
+    <button class="modal-backdrop" type="button" data-close-modal data-i18n-aria-label="close" aria-label="Close"></button>
     <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <button class="modal-close" type="button" data-close-modal aria-label="Close">
+      <button class="modal-close" type="button" data-close-modal data-i18n-aria-label="close" aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
       </button>
       <div class="modal-hero">
-        <img id="modal-icon" src="assets/ifetch-icon.png" alt="">
+        <img id="modal-icon" src="assets/ifetch-icon.png" width="1024" height="1024" alt="">
         <div>
           <span class="section-kicker" id="modal-section">Utilities</span>
           <h2 id="modal-title">iFetch</h2>
@@ -1514,17 +1593,28 @@ img {
       <p class="modal-description" id="modal-description"></p>
       <dl class="package-metadata" id="modal-metadata"></dl>
       <div class="modal-actions">
-        <a class="button button-primary" id="modal-download" href="#">
+        <button class="button button-primary" id="modal-download" type="button" aria-expanded="false" aria-controls="download-options">
           <span data-i18n="downloadDeb">Download .deb</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 19h14"/></svg>
-        </a>
-        <a class="button button-secondary" id="modal-depiction" href="sileodepiction.json" target="_blank" rel="noreferrer">
+        </button>
+        <button class="button button-secondary" id="modal-description-button" type="button" aria-expanded="false" aria-controls="description-panel">
           <span data-i18n="viewDepiction">View depiction</span>
-        </a>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>
+        </button>
       </div>
+      <section class="modal-option-panel" id="download-options" hidden>
+        <h3 data-i18n="downloadTitle">Choose a package</h3>
+        <p data-i18n="downloadHint">Select the build that matches your jailbreak environment.</p>
+        <div class="download-options-list" id="download-options-list"></div>
+      </section>
+      <section class="modal-option-panel" id="description-panel" hidden>
+        <h3 data-i18n="descriptionTitle">About iFetch</h3>
+        <p id="description-panel-text"></p>
+        <ul class="description-list" id="description-list"></ul>
+      </section>
       <div class="modal-gallery" id="modal-gallery">
-        <img src="assets/en1.png" data-en-src="assets/en1.png" data-ru-src="assets/ru1.png" alt="iFetch overview">
-        <img src="assets/en2.png" data-en-src="assets/en2.png" data-ru-src="assets/ru2.png" alt="iFetch diagnostics">
+        <img src="assets/en1.png" data-en-src="assets/en1.png" data-ru-src="assets/ru1.png" width="750" height="1334" loading="lazy" alt="iFetch overview">
+        <img src="assets/en2.png" data-en-src="assets/en2.png" data-ru-src="assets/ru2.png" width="750" height="1334" loading="lazy" alt="iFetch diagnostics">
       </div>
     </section>
   </div>
@@ -1537,27 +1627,27 @@ const translations = {
   en: {
     navPackages: "Packages",
     navAbout: "About",
-    heroEyebrow: "Rootless + RootHide repository · iOS 14–17",
-    heroTitle: "System tools made for jailbroken iPhones.",
-    heroDescription: "A focused repository for native diagnostics, monitoring and utilities. Built for Sileo, rootless jailbreaks, and RootHide.",
+    heroEyebrow: "iOS 14–17 · Rootless · RootHide",
+    heroTitle: "iFetch for jailbroken iPhones.",
+    heroDescription: "System information, diagnostics, processes, widgets and a terminal client in one package.",
     addSileo: "Add to Sileo",
     copySource: "Copy source",
     copied: "Source copied",
     featuredPackage: "Featured package",
-    showcaseText: "Live diagnostics, widgets, process control, crash reports and a full terminal client.",
-    liveMonitoring: "Live monitoring",
+    showcaseText: "Native diagnostics and monitoring for iOS 14–17.",
     statPackages: "Packages",
     statCompatibility: "Compatibility",
     statEnvironment: "Environment",
     statArchitecture: "Architecture",
     packagesKicker: "Repository catalog",
     packagesTitle: "Packages",
-    packagesDescription: "Select a package to see its version, requirements and complete description.",
+    packagesDescription: "Open a package to view details or download the correct build.",
+    searchLabel: "Search packages",
     searchPlaceholder: "Search packages",
     emptyTitle: "Nothing found",
     emptyText: "Try a different package name or identifier.",
-    aboutTitle: "Your iPhone, explained.",
-    aboutText: "iFetch combines native system information with live charts, process inspection, jailbreak health checks, network details, WidgetKit widgets and an SSH-friendly CLI.",
+    aboutTitle: "System information in one place.",
+    aboutText: "Check hardware, battery, processes, crashes, jailbreak health and network activity without switching between separate tools.",
     featureWidgets: "Native widgets",
     featureProcesses: "Process manager",
     featureCrashes: "Crash reports",
@@ -1569,40 +1659,55 @@ const translations = {
     openSileo: "Open in Sileo",
     footerText: "Rootless + RootHide Repository",
     details: "View details",
-    downloadDeb: "Download .deb",
-    viewDepiction: "View depiction",
+    downloadDeb: "Download",
+    viewDepiction: "Description",
+    downloadTitle: "Choose a package",
+    downloadHint: "Select the build that matches your jailbreak environment.",
+    rootlessTitle: "Rootless",
+    rootlessDetail: "For Dopamine, palera1n and compatible rootless jailbreaks.",
+    rootHideTitle: "RootHide",
+    rootHideDetail: "For devices using the RootHide environment.",
+    descriptionTitle: "About iFetch",
+    ifetchLongDescription: "iFetch is a native system utility for jailbroken iPhones. It collects useful diagnostics in one app and does not require an internet connection for core monitoring.",
+    descriptionFeatureSystem: "Device, storage, battery and operating system information",
+    descriptionFeatureMonitoring: "Live CPU, memory, temperature and network charts",
+    descriptionFeatureProcesses: "Process manager with CPU and RAM sorting",
+    descriptionFeatureDiagnostics: "Crash reports, system snapshots and Jailbreak Health",
+    descriptionFeatureExtensions: "WidgetKit widgets and a Control Center module",
+    descriptionFeatureCLI: "Terminal client for NewTerm and SSH",
     version: "Version",
     architecture: "Architecture",
     compatibility: "Compatibility",
     dependencies: "Dependencies",
     maintainer: "Maintainer",
     section: "Section",
-    packageLoadError: "Live package index is temporarily unavailable. Showing cached package information."
+    packageLoadError: "Live package index is temporarily unavailable. Showing cached package information.",
+    close: "Close"
   },
   ru: {
     navPackages: "Пакеты",
     navAbout: "О проекте",
-    heroEyebrow: "Rootless + RootHide · iOS 14–17",
-    heroTitle: "Системные инструменты для iPhone с джейлбрейком.",
-    heroDescription: "Репозиторий нативной диагностики, мониторинга и утилит для Sileo, rootless-джейлбрейков и RootHide.",
+    heroEyebrow: "iOS 14–17 · Rootless · RootHide",
+    heroTitle: "iFetch для iPhone с джейлбрейком.",
+    heroDescription: "Системная информация, диагностика, процессы, виджеты и терминальный клиент в одном пакете.",
     addSileo: "Добавить в Sileo",
     copySource: "Скопировать репозиторий",
     copied: "Адрес репозитория скопирован",
     featuredPackage: "Главный пакет",
-    showcaseText: "Живая диагностика, виджеты, процессы, crash-логи и полноценный клиент для терминала.",
-    liveMonitoring: "Живой мониторинг",
+    showcaseText: "Нативная диагностика и мониторинг для iOS 14–17.",
     statPackages: "Пакеты",
     statCompatibility: "Совместимость",
     statEnvironment: "Окружение",
     statArchitecture: "Архитектура",
     packagesKicker: "Каталог репозитория",
     packagesTitle: "Пакеты",
-    packagesDescription: "Выберите пакет, чтобы посмотреть версию, требования и полное описание.",
+    packagesDescription: "Откройте пакет, чтобы посмотреть детали или скачать нужную сборку.",
+    searchLabel: "Поиск пакетов",
     searchPlaceholder: "Поиск пакетов",
     emptyTitle: "Ничего не найдено",
     emptyText: "Попробуйте другое название или идентификатор пакета.",
-    aboutTitle: "Всё об iPhone в одном месте.",
-    aboutText: "iFetch объединяет системную информацию, живые графики, диспетчер процессов, Jailbreak Health, сетевые детали, виджеты WidgetKit и удобный CLI для SSH.",
+    aboutTitle: "Системная информация в одном месте.",
+    aboutText: "Проверяйте железо, батарею, процессы, сбои, состояние джейлбрейка и сеть без нескольких отдельных утилит.",
     featureWidgets: "Нативные виджеты",
     featureProcesses: "Диспетчер процессов",
     featureCrashes: "Crash-логи",
@@ -1614,15 +1719,30 @@ const translations = {
     openSileo: "Открыть в Sileo",
     footerText: "Rootless + RootHide репозиторий",
     details: "Подробнее",
-    downloadDeb: "Скачать .deb",
-    viewDepiction: "Открыть описание",
+    downloadDeb: "Скачать",
+    viewDepiction: "Описание",
+    downloadTitle: "Выберите пакет",
+    downloadHint: "Скачайте сборку для своего jailbreak-окружения.",
+    rootlessTitle: "Rootless",
+    rootlessDetail: "Для Dopamine, palera1n и совместимых rootless-джейлбрейков.",
+    rootHideTitle: "RootHide",
+    rootHideDetail: "Для устройств с окружением RootHide.",
+    descriptionTitle: "Об iFetch",
+    ifetchLongDescription: "iFetch — нативная системная утилита для iPhone с джейлбрейком. Основная диагностика работает без подключения к интернету.",
+    descriptionFeatureSystem: "Информация об устройстве, памяти, батарее и системе",
+    descriptionFeatureMonitoring: "Живые графики CPU, ОЗУ, температуры и сети",
+    descriptionFeatureProcesses: "Диспетчер процессов с сортировкой по CPU и ОЗУ",
+    descriptionFeatureDiagnostics: "Crash-логи, снимки системы и Jailbreak Health",
+    descriptionFeatureExtensions: "Виджеты WidgetKit и модуль Control Center",
+    descriptionFeatureCLI: "Терминальный клиент для NewTerm и SSH",
     version: "Версия",
     architecture: "Архитектура",
     compatibility: "Совместимость",
     dependencies: "Зависимости",
     maintainer: "Автор",
     section: "Раздел",
-    packageLoadError: "Индекс пакетов временно недоступен. Показана сохранённая информация."
+    packageLoadError: "Индекс пакетов временно недоступен. Показана сохранённая информация.",
+    close: "Закрыть"
   }
 };
 
@@ -1640,17 +1760,36 @@ const fallbackPackages = [
     Icon: `${repositoryURL}assets/ifetch-icon.png`,
     SileoDepiction: `${repositoryURL}sileodepiction.json`,
     Filename: "debs/com.wee1ka.ifetch_5.1.1_rootless_iphoneos-arm64.deb"
+  },
+  {
+    Package: "com.wee1ka.ifetch",
+    Name: "iFetch",
+    Version: "5.1.1",
+    Architecture: "iphoneos-arm64e",
+    Description: "Advanced system diagnostics, process monitor and CLI fetch for rootless and RootHide jailbreak devices on iOS 14–17",
+    Maintainer: "wee1ka",
+    Author: "wee1ka",
+    Section: "Tweaks",
+    Depends: "firmware (>= 14.0), firmware (<< 18.0), mobilesubstrate, com.opa334.ccsupport",
+    Icon: `${repositoryURL}assets/ifetch-icon.png`,
+    SileoDepiction: `${repositoryURL}sileodepiction.json`,
+    Filename: "debs/com.wee1ka.ifetch_5.1.1_roothide_iphoneos-arm64e.deb"
   }
 ];
 
 let currentLanguage = localStorage.getItem("ifetch-repo-language") || (navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en");
 let allPackages = fallbackPackages;
 let activePackage = null;
+let modalTrigger = null;
 let toastTimer = null;
 
 const packageGrid = document.getElementById("package-grid");
 const packageSearch = document.getElementById("package-search");
 const packageModal = document.getElementById("package-modal");
+const downloadButton = document.getElementById("modal-download");
+const descriptionButton = document.getElementById("modal-description-button");
+const downloadOptions = document.getElementById("download-options");
+const descriptionPanel = document.getElementById("description-panel");
 const toast = document.getElementById("toast");
 
 function t(key) {
@@ -1668,8 +1807,13 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
   document.querySelectorAll("[data-language]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.language === currentLanguage);
+    const active = button.dataset.language === currentLanguage;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
   });
   document.querySelectorAll("[data-en-src]").forEach((image) => {
     image.src = currentLanguage === "ru" ? image.dataset.ruSrc : image.dataset.enSrc;
@@ -1844,6 +1988,78 @@ function metadataRow(label, value) {
   return wrapper;
 }
 
+function packageKind(item) {
+  const filename = String(item.Filename || "").toLowerCase();
+  return filename.includes("roothide") || item.Architecture === "iphoneos-arm64e" ? "roothide" : "rootless";
+}
+
+function packageVariants(item) {
+  const variants = allPackages
+    .filter((candidate) => candidate.Package === item.Package && candidate.Version === item.Version && candidate.Filename)
+    .sort((left, right) => {
+      if (packageKind(left) === packageKind(right)) {
+        return 0;
+      }
+      return packageKind(left) === "rootless" ? -1 : 1;
+    });
+  const unique = new Map();
+  variants.forEach((variant) => unique.set(packageKind(variant), variant));
+  return [...unique.values()];
+}
+
+function fillDownloadOptions(item) {
+  const list = document.getElementById("download-options-list");
+  const links = packageVariants(item).map((variant) => {
+    const kind = packageKind(variant);
+    const link = document.createElement("a");
+    link.className = "download-option";
+    link.href = absoluteAsset(variant.Filename);
+    link.setAttribute("download", "");
+
+    const icon = document.createElement("span");
+    icon.className = "download-option-icon";
+    icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 19h14"/></svg>';
+
+    const copy = document.createElement("span");
+    copy.className = "download-option-copy";
+    const title = document.createElement("strong");
+    title.textContent = t(kind === "roothide" ? "rootHideTitle" : "rootlessTitle");
+    const detail = document.createElement("span");
+    detail.textContent = t(kind === "roothide" ? "rootHideDetail" : "rootlessDetail");
+    copy.append(title, detail);
+
+    const architecture = document.createElement("code");
+    architecture.textContent = variant.Architecture || "iphoneos-arm64";
+    link.append(icon, copy, architecture);
+    return link;
+  });
+  list.replaceChildren(...links);
+  downloadButton.hidden = links.length === 0;
+}
+
+function fillDescriptionPanel(item) {
+  const text = document.getElementById("description-panel-text");
+  const list = document.getElementById("description-list");
+  const isIFetch = item.Package === "com.wee1ka.ifetch";
+  text.textContent = isIFetch ? t("ifetchLongDescription") : (item.Description || "");
+  const featureKeys = isIFetch
+    ? [
+        "descriptionFeatureSystem",
+        "descriptionFeatureMonitoring",
+        "descriptionFeatureProcesses",
+        "descriptionFeatureDiagnostics",
+        "descriptionFeatureExtensions",
+        "descriptionFeatureCLI"
+      ]
+    : [];
+  list.replaceChildren(...featureKeys.map((key) => {
+    const itemElement = document.createElement("li");
+    itemElement.textContent = t(key);
+    return itemElement;
+  }));
+  list.hidden = featureKeys.length === 0;
+}
+
 function fillModal(item) {
   document.getElementById("modal-icon").src = packageIcon(item);
   document.getElementById("modal-title").textContent = item.Name || item.Package;
@@ -1862,21 +2078,35 @@ function fillModal(item) {
     metadataRow(t("dependencies"), item.Depends)
   );
 
-  const download = document.getElementById("modal-download");
-  download.href = absoluteAsset(item.Filename);
-  download.hidden = !item.Filename;
-
-  const depictionValue = item.SileoDepiction || item.Sileodepiction || item.Depiction;
-  const depiction = document.getElementById("modal-depiction");
-  depiction.href = absoluteAsset(depictionValue);
-  depiction.hidden = !depictionValue;
+  fillDownloadOptions(item);
+  fillDescriptionPanel(item);
 
   document.getElementById("modal-gallery").hidden = item.Package !== "com.wee1ka.ifetch";
 }
 
+function resetModalPanels() {
+  downloadOptions.hidden = true;
+  descriptionPanel.hidden = true;
+  downloadButton.setAttribute("aria-expanded", "false");
+  descriptionButton.setAttribute("aria-expanded", "false");
+}
+
+function toggleModalPanel(panel, button) {
+  const shouldOpen = panel.hidden;
+  resetModalPanels();
+  if (shouldOpen) {
+    panel.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    panel.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+  }
+}
+
 function openPackage(item, updateHistory = true) {
+  modalTrigger = document.activeElement;
   activePackage = item;
   fillModal(item);
+  resetModalPanels();
   packageModal.hidden = false;
   document.body.classList.add("modal-open");
   document.querySelector(".modal-close").focus();
@@ -1894,11 +2124,16 @@ function closeModal(updateHistory = true) {
   packageModal.hidden = true;
   document.body.classList.remove("modal-open");
   activePackage = null;
+  resetModalPanels();
   if (updateHistory) {
     const url = new URL(window.location.href);
     url.searchParams.delete("package");
     history.pushState({}, "", url);
   }
+  if (modalTrigger instanceof HTMLElement) {
+    modalTrigger.focus();
+  }
+  modalTrigger = null;
 }
 
 function showToast(message) {
@@ -1956,13 +2191,35 @@ document.querySelectorAll("[data-language]").forEach((button) => {
 
 document.getElementById("copy-source").addEventListener("click", copySource);
 packageSearch.addEventListener("input", () => renderPackages(packageSearch.value));
+downloadButton.addEventListener("click", () => toggleModalPanel(downloadOptions, downloadButton));
+descriptionButton.addEventListener("click", () => toggleModalPanel(descriptionPanel, descriptionButton));
 document.querySelectorAll("[data-close-modal]").forEach((button) => {
   button.addEventListener("click", () => closeModal());
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    closeModal();
+    if (!downloadOptions.hidden || !descriptionPanel.hidden) {
+      resetModalPanels();
+    } else {
+      closeModal();
+    }
+  }
+  if (event.key === "Tab" && !packageModal.hidden) {
+    const focusable = [...packageModal.querySelectorAll("button, a[href], input, [tabindex]")]
+      .filter((element) => !element.hidden && !element.closest("[hidden]") && element.tabIndex >= 0);
+    if (focusable.length === 0) {
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 });
 
