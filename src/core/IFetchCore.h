@@ -2,6 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+FOUNDATION_EXPORT NSString *IFActiveVPNInterface(void);
+
 typedef NS_ENUM(NSInteger, IFLanguage) {
     IFLanguageEnglish = 0,
     IFLanguageRussian = 1

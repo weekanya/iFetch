@@ -362,6 +362,114 @@ static NSDictionary<NSString *, NSNumber *> *IFNetworkByteTotals(void) {
     return @{@"in": @(inputBytes), @"out": @(outputBytes)};
 }
 
+static BOOL IFIsVPNInterface(NSString *name) {
+    if (name.length == 0) {
+        return NO;
+    }
+    return [name hasPrefix:@"utun"] || [name hasPrefix:@"tun"] ||
+           [name hasPrefix:@"tap"] || [name hasPrefix:@"ipsec"] ||
+           [name hasPrefix:@"ppp"] || [name hasPrefix:@"wg"];
+}
+
+static NSString *IFVPNInterfaceFromState(NSDictionary *state) {
+    if (![state isKindOfClass:[NSDictionary class]]) {
+        return @"";
+    }
+    for (NSString *key in @[@"PrimaryInterface", @"InterfaceName", @"DeviceName"]) {
+        NSString *candidate = [state[key] isKindOfClass:[NSString class]] ? state[key] : @"";
+        if (IFIsVPNInterface(candidate)) {
+            return candidate;
+        }
+    }
+    return @"";
+}
+
+NSString *IFActiveVPNInterface(void) {
+    typedef CFTypeRef (*IFDynamicStoreCreateFn)(CFAllocatorRef, CFStringRef, const void *, const void *);
+    typedef CFPropertyListRef (*IFDynamicStoreCopyValueFn)(CFTypeRef, CFStringRef);
+    typedef CFArrayRef (*IFDynamicStoreCopyKeyListFn)(CFTypeRef, CFStringRef);
+    IFDynamicStoreCreateFn createStore = (IFDynamicStoreCreateFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCreate");
+    IFDynamicStoreCopyValueFn copyValue = (IFDynamicStoreCopyValueFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCopyValue");
+    IFDynamicStoreCopyKeyListFn copyKeyList =
+        (IFDynamicStoreCopyKeyListFn)dlsym(RTLD_DEFAULT, "SCDynamicStoreCopyKeyList");
+    if (createStore == NULL || copyValue == NULL || copyKeyList == NULL) {
+        return @"";
+    }
+
+    CFTypeRef store = createStore(kCFAllocatorDefault, CFSTR("iFetch VPN"), NULL, NULL);
+    if (store == NULL) {
+        return @"";
+    }
+
+    NSString *result = @"";
+    for (NSString *key in @[@"State:/Network/Global/IPv4", @"State:/Network/Global/IPv6"]) {
+        CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
+        if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
+            result = IFVPNInterfaceFromState((__bridge NSDictionary *)value);
+        }
+        if (value != NULL) {
+            CFRelease(value);
+        }
+        if (result.length > 0) {
+            break;
+        }
+    }
+
+    if (result.length == 0) {
+        CFPropertyListRef value = copyValue(store, CFSTR("State:/Network/Global/Proxies"));
+        if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
+            NSDictionary *proxies = (__bridge NSDictionary *)value;
+            NSDictionary *scoped = [proxies[@"__SCOPED__"] isKindOfClass:[NSDictionary class]]
+                ? proxies[@"__SCOPED__"]
+                : @{};
+            for (NSString *name in scoped) {
+                if (IFIsVPNInterface(name)) {
+                    result = name;
+                    break;
+                }
+            }
+        }
+        if (value != NULL) {
+            CFRelease(value);
+        }
+    }
+
+    if (result.length == 0) {
+        for (NSString *pattern in @[@"State:/Network/Service/.*/IPv4", @"State:/Network/Service/.*/IPv6"]) {
+            CFArrayRef keys = copyKeyList(store, (__bridge CFStringRef)pattern);
+            if (keys == NULL) {
+                continue;
+            }
+            for (NSString *key in (__bridge NSArray *)keys) {
+                CFPropertyListRef value = copyValue(store, (__bridge CFStringRef)key);
+                if (value != NULL && CFGetTypeID(value) == CFDictionaryGetTypeID()) {
+                    NSDictionary *state = (__bridge NSDictionary *)value;
+                    NSArray *addresses = [state[@"Addresses"] isKindOfClass:[NSArray class]]
+                        ? state[@"Addresses"]
+                        : @[];
+                    NSString *candidate = IFVPNInterfaceFromState(state);
+                    if (candidate.length > 0 && addresses.count > 0) {
+                        result = candidate;
+                    }
+                }
+                if (value != NULL) {
+                    CFRelease(value);
+                }
+                if (result.length > 0) {
+                    break;
+                }
+            }
+            CFRelease(keys);
+            if (result.length > 0) {
+                break;
+            }
+        }
+    }
+
+    CFRelease(store);
+    return result;
+}
+
 static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) != 0) {
@@ -374,7 +482,7 @@ static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
     NSString *preferredInterface = nil;
     NSString *fallbackIP = nil;
     NSString *fallbackInterface = nil;
-    NSString *vpnInterface = nil;
+    NSString *vpnInterface = IFActiveVPNInterface();
 
     for (struct ifaddrs *cursor = interfaces; cursor != NULL; cursor = cursor->ifa_next) {
         if (cursor->ifa_addr == NULL || cursor->ifa_name == NULL ||
@@ -392,13 +500,6 @@ static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
         }
         NSString *ip = [NSString stringWithUTF8String:buffer];
 
-        BOOL isVPN = [name hasPrefix:@"utun"] || [name hasPrefix:@"tun"] ||
-                     [name hasPrefix:@"tap"] || [name hasPrefix:@"ipsec"] ||
-                     [name hasPrefix:@"ppp"] || [name hasPrefix:@"wg"];
-        if (isVPN) {
-            vpnInterface = name;
-        }
-
         if ([name isEqualToString:@"en0"] || [name isEqualToString:@"pdp_ip0"]) {
             preferredIP = ip;
             preferredInterface = name;
@@ -412,7 +513,7 @@ static NSDictionary<NSString *, NSString *> *IFActiveNetworkDetails(void) {
     return @{
         @"ip": preferredIP ?: fallbackIP ?: [IFLanguageManager english:@"Unavailable" russian:@"Недоступно"],
         @"interface": preferredInterface ?: fallbackInterface ?: [IFLanguageManager english:@"None" russian:@"Нет"],
-        @"vpn": vpnInterface ?: [IFLanguageManager english:@"None" russian:@"Нет"]
+        @"vpn": vpnInterface.length > 0 ? vpnInterface : [IFLanguageManager english:@"None" russian:@"Нет"]
     };
 }
 

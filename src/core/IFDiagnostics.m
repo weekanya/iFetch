@@ -574,7 +574,7 @@ static double IFSystemCPUPercent(void) {
 + (NSDictionary<NSString *, id> *)extendedNetworkDetails {
     NSString *ipv4 = @"";
     NSString *ipv6 = @"";
-    NSString *vpnInterface = @"";
+    NSString *vpnInterface = IFActiveVPNInterface();
     NSMutableDictionary<NSString *, NSDictionary *> *interfaces = [NSMutableDictionary dictionary];
     struct ifaddrs *addresses = NULL;
     if (getifaddrs(&addresses) == 0) {
@@ -583,11 +583,6 @@ static double IFSystemCPUPercent(void) {
                 continue;
             }
             NSString *name = [NSString stringWithUTF8String:cursor->ifa_name];
-            if (vpnInterface.length == 0 &&
-                ([name hasPrefix:@"utun"] || [name hasPrefix:@"tun"] || [name hasPrefix:@"tap"] ||
-                 [name hasPrefix:@"ipsec"] || [name hasPrefix:@"ppp"] || [name hasPrefix:@"wg"])) {
-                vpnInterface = name;
-            }
             int family = cursor->ifa_addr->sa_family;
             char buffer[INET6_ADDRSTRLEN] = {0};
             if (family == AF_INET) {
