@@ -21,17 +21,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          artifact_workflow_id="$(
-            gh api \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/build-artifact.yml" \
-              --jq '.id'
-          )"
-          artifact_cutoff="$(date -u -d '30 days ago' '+%Y-%m-%dT%H:%M:%SZ')"
-
           gh api \
             --paginate \
             "repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" \
-            --jq ".workflow_runs[] | select(.status == \"completed\" and (.workflow_id != ${artifact_workflow_id} or .created_at < \"${artifact_cutoff}\")) | .id" |
+            --jq '.workflow_runs[] | select(.status == "completed") | .id' |
           while IFS= read -r run_id; do
             gh api \
               --method DELETE \
