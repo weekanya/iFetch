@@ -39,6 +39,8 @@ Add the repository to Sileo and install **iFetch**:
 
 ```text
 https://weekanya.github.io/iFetch/
+or
+https://havoc.app
 ```
 
 Sileo selects `iphoneos-arm64` for conventional rootless jailbreaks or
