@@ -921,6 +921,18 @@ static double IFSystemCPUPercent(void) {
          p[@"name"], p[@"pid"], [IFetchCore formatBytes:[p[@"resident_bytes"] unsignedLongLongValue]], p[@"jetsam_band"], limitStr];
     }
 
+    if (jetsamProcs.count > 0) {
+        [md appendString:@"\n### Highest Jetsam Quota Pressure\n"];
+        for (NSDictionary *p in jetsamProcs) {
+            uint64_t limit = [p[@"jetsam_limit_bytes"] unsignedLongLongValue];
+            NSString *limitStr = limit > 0
+                ? [NSString stringWithFormat:@"Limit: %@ (%.1f%% used)", [IFetchCore formatBytes:limit], [p[@"jetsam_usage_percent"] doubleValue]]
+                : @"Limit: Default/Unlimited";
+            [md appendFormat:@"- **%@** (PID %@): %@ RAM | Band: %@ | %@\n",
+             p[@"name"], p[@"pid"], [IFetchCore formatBytes:[p[@"resident_bytes"] unsignedLongLongValue]], p[@"jetsam_band"], limitStr];
+        }
+    }
+
     [md appendString:@"\n## 🌐 Network Status\n"];
     [md appendFormat:@"- **Local IP:** %@\n", network[@"ipv4"] ?: @"—"];
     if ([network[@"ssid"] length] > 0) {
