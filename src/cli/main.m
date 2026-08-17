@@ -52,21 +52,43 @@ static NSDictionary *IFBuildSnapshot(IFNetworkMonitor *networkMonitor,
 
     NSMutableArray *topCPU = [NSMutableArray array];
     for (IFProcessSample *sample in [processMonitor topProcessesByCPU:processLimit]) {
-        [topCPU addObject:@{@"pid": @(sample.pid), @"name": sample.name ?: @"",
-                            @"path": sample.executablePath ?: @"", @"cpu_percent": @(sample.cpuPercent),
-                            @"resident_bytes": @(sample.residentBytes), @"threads": @(sample.threadCount)}];
+        [topCPU addObject:@{
+            @"pid": @(sample.pid),
+            @"name": sample.name ?: @"",
+            @"path": sample.executablePath ?: @"",
+            @"cpu_percent": @(sample.cpuPercent),
+            @"resident_bytes": @(sample.residentBytes),
+            @"threads": @(sample.threadCount),
+            @"jetsam_band": sample.jetsamBandName ?: @"",
+            @"jetsam_priority": @(sample.jetsamPriority),
+            @"jetsam_limit_bytes": @(sample.jetsamLimitBytes),
+            @"jetsam_usage_percent": @(sample.jetsamUsagePercent)
+        }];
     }
     NSMutableArray *topMemory = [NSMutableArray array];
     for (IFProcessSample *sample in [processMonitor topProcessesByMemory:processLimit]) {
-        [topMemory addObject:@{@"pid": @(sample.pid), @"name": sample.name ?: @"",
-                               @"path": sample.executablePath ?: @"", @"cpu_percent": @(sample.cpuPercent),
-                               @"resident_bytes": @(sample.residentBytes), @"threads": @(sample.threadCount)}];
+        [topMemory addObject:@{
+            @"pid": @(sample.pid),
+            @"name": sample.name ?: @"",
+            @"path": sample.executablePath ?: @"",
+            @"cpu_percent": @(sample.cpuPercent),
+            @"resident_bytes": @(sample.residentBytes),
+            @"threads": @(sample.threadCount),
+            @"jetsam_band": sample.jetsamBandName ?: @"",
+            @"jetsam_priority": @(sample.jetsamPriority),
+            @"jetsam_limit_bytes": @(sample.jetsamLimitBytes),
+            @"jetsam_usage_percent": @(sample.jetsamUsagePercent)
+        }];
     }
 
     return @{
         @"version": [IFetchCore versionString],
         @"device": @{@"name": device.modelName, @"identifier": device.identifier,
                       @"chip": device.chipName, @"architecture": device.architectureName},
+        @"thermal": @{@"state": [IFetchCore thermalStateDescription],
+                      @"state_raw": @([IFetchCore thermalStateRaw]),
+                      @"throttling": @([IFetchCore isThermalThrottling]),
+                      @"summary": [IFetchCore thermalThrottlingSummary]},
         @"system": @{@"ios": NSProcessInfo.processInfo.operatingSystemVersionString,
                       @"kernel": [IFetchCore darwinVersion], @"uptime": [IFetchCore systemUptime],
                       @"memory_used_bytes": usedMemory, @"memory_total_bytes": @([IFetchCore totalMemoryBytes]),
@@ -110,6 +132,7 @@ static void IFPrintSnapshot(NSDictionary *snapshot, BOOL color, NSUInteger proce
                             BOOL networkOnly, BOOL batteryOnly) {
     NSDictionary *device = snapshot[@"device"];
     NSDictionary *system = snapshot[@"system"];
+    NSDictionary *thermal = snapshot[@"thermal"];
     NSDictionary *battery = snapshot[@"battery"];
     NSDictionary *jailbreak = snapshot[@"jailbreak"];
     NSDictionary *network = snapshot[@"network"];
@@ -123,6 +146,7 @@ static void IFPrintSnapshot(NSDictionary *snapshot, BOOL color, NSUInteger proce
         IFPrintLine(IFT(@"Architecture", @"Архитектура"), device[@"architecture"], color);
         IFPrintLine(IFT(@"Kernel", @"Ядро"), system[@"kernel"], color);
         IFPrintLine(IFT(@"Uptime", @"Аптайм"), system[@"uptime"], color);
+        IFPrintLine(IFT(@"Thermal", @"Термальный статус"), [NSString stringWithFormat:@"%@ (%@)", thermal[@"state"], [thermal[@"throttling"] boolValue] ? IFT(@"Throttling", @"Троттлинг") : IFT(@"Optimal", @"Оптимально")], color);
         IFPrintLine(IFT(@"Memory", @"ОЗУ"), [NSString stringWithFormat:@"%@ / %@",
             [IFetchCore formatBytes:[system[@"memory_used_bytes"] unsignedLongLongValue]],
             [IFetchCore formatBytes:[system[@"memory_total_bytes"] unsignedLongLongValue]]], color);
@@ -167,10 +191,11 @@ static void IFPrintSnapshot(NSDictionary *snapshot, BOOL color, NSUInteger proce
                                                                     : IFT(@"Top processes by CPU", @"Top процессов по CPU");
             printf("\n%s\n", IFColor(@"1;33", title, color).UTF8String);
             for (NSDictionary *process in snapshot[@"processes"][metric]) {
-                printf("  %-22s %5.1f%%  %9s  PID %d\n", [process[@"name"] UTF8String],
+                printf("  %-22s %5.1f%%  %9s  PID %-5d  [%s]\n", [process[@"name"] UTF8String],
                        [process[@"cpu_percent"] doubleValue],
                        [IFetchCore formatBytes:[process[@"resident_bytes"] unsignedLongLongValue]].UTF8String,
-                       [process[@"pid"] intValue]);
+                       [process[@"pid"] intValue],
+                       [process[@"jetsam_band"] UTF8String]);
             }
         }
     }
@@ -182,7 +207,8 @@ static void IFPrintHelp(void) {
            "Usage: ifetch [options]\n\n",
            [IFetchCore versionString].UTF8String);
     printf(
-           "  --json              Output machine-readable JSON\n"
+           "  --report, -r         Output full system diagnostics report in Markdown\n"
+           "  --json               Output machine-readable JSON\n"
            "  --watch              Refresh continuously\n"
            "  --interval SECONDS   Watch refresh interval (default: 1)\n"
            "  --processes COUNT    Number of processes to show (default: 3)\n"
@@ -201,6 +227,7 @@ int main(int argc, char *argv[]) {
         BOOL noColor = NO;
         BOOL networkOnly = NO;
         BOOL batteryOnly = NO;
+        BOOL reportOnly = NO;
         NSUInteger processLimit = 3;
         double interval = 1;
 
@@ -212,6 +239,8 @@ int main(int argc, char *argv[]) {
             } else if ([argument isEqualToString:@"--version"]) {
                 printf("%s\n", [IFetchCore versionString].UTF8String);
                 return 0;
+            } else if ([argument isEqualToString:@"--report"] || [argument isEqualToString:@"-r"]) {
+                reportOnly = YES;
             } else if ([argument isEqualToString:@"--json"]) {
                 json = YES;
             } else if ([argument isEqualToString:@"--watch"]) {
@@ -233,6 +262,12 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "ifetch: unknown option: %s\n", argument.UTF8String);
                 return 2;
             }
+        }
+
+        if (reportOnly) {
+            NSString *report = [IFDiagnostics generateDiagnosticReportMarkdown];
+            printf("%s\n", report.UTF8String);
+            return 0;
         }
 
         BOOL color = isatty(STDOUT_FILENO) && !noColor && !json;

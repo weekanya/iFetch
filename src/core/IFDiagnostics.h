@@ -76,6 +76,8 @@ typedef NS_ENUM(NSInteger, IFHealthState) {
                                             processes:(NSArray<IFProcessSample *> *)hotProcesses;
 + (NSDictionary<NSString *, id> *)extendedNetworkDetails;
 + (NSString *)redactedAddress:(NSString *)address;
++ (NSString *)generateDiagnosticReportMarkdown;
++ (NSDictionary<NSString *, id> *)generateDiagnosticReportDictionary;
 @end
 
 NS_ASSUME_NONNULL_END

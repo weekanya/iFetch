@@ -613,19 +613,37 @@ final class RootViewController: IFStyledTableViewController {
         let sheet = UIAlertController(
             title: IFL("System report", "Системный отчёт"),
             message: IFL(
-                "Choose whether network addresses should be hidden.",
-                "Выберите, нужно ли скрыть сетевые адреса."
+                "Share full markdown diagnostics or copy summary.",
+                "Отправить полный Markdown-отчёт диагностики или скопировать сводку."
             ),
             preferredStyle: .actionSheet
         )
         sheet.addAction(UIAlertAction(
-            title: IFL("Copy private report", "Копировать приватный отчёт"),
+            title: IFL("Share full diagnostics report", "Отправить полный отчёт диагностики"),
+            style: .default
+        ) { [weak self] _ in
+            guard let self else { return }
+            let report = IFDiagnostics.generateDiagnosticReportMarkdown()
+            let activityVC = UIActivityViewController(activityItems: [report], applicationActivities: nil)
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = self.view
+                popover.sourceRect = CGRect(
+                    x: self.view.bounds.midX,
+                    y: self.view.bounds.midY,
+                    width: 1,
+                    height: 1
+                )
+            }
+            self.present(activityVC, animated: true)
+        })
+        sheet.addAction(UIAlertAction(
+            title: IFL("Copy private summary", "Копировать приватную сводку"),
             style: .default
         ) { [weak self] _ in
             self?.copyReport(redacted: true)
         })
         sheet.addAction(UIAlertAction(
-            title: IFL("Copy full report", "Копировать полный отчёт"),
+            title: IFL("Copy full summary", "Копировать полную сводку"),
             style: .default
         ) { [weak self] _ in
             self?.copyReport(redacted: false)

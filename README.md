@@ -22,9 +22,12 @@ a native Swift UIKit app, Home Screen widgets, a Control Center module, and the
 
 ## Features
 
-- live CPU, memory, storage, battery, temperature, and network monitoring;
+- live CPU, memory, storage, battery, thermal state, and network monitoring;
 - Swift interface with an iOS 18-inspired visual style;
-- process explorer with tweak details and confirmed process termination;
+- hardware speaker diagnostics for top (earpiece), bottom, and stereo channels with frequency tone generator;
+- process explorer with Jetsam priority bands, memory limits, tweak details, and confirmed process termination;
+- SoC thermal state & throttling status with health checks;
+- one-click system diagnostics report exporter (Markdown/JSON) for sharing with developers;
 - per-process sockets, Wi-Fi, DNS, VPN, traffic speed, and latency information;
 - crash analysis, injection map, LaunchDaemons, and jailbreak integrity checks;
 - system snapshots, health notifications, and a reversible diagnostic mode;
@@ -51,6 +54,7 @@ Sileo selects `iphoneos-arm64` for conventional rootless jailbreaks or
 Run `ifetch` in NewTerm or over SSH. Useful options include:
 
 ```sh
+ifetch --report
 ifetch --watch
 ifetch --json
 ifetch --processes 10

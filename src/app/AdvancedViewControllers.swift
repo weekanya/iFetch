@@ -679,7 +679,7 @@ final class IFAdvancedMenuViewController: IFStyledTableViewController {
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        4
+        5
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -687,25 +687,29 @@ final class IFAdvancedMenuViewController: IFStyledTableViewController {
             IFL("System snapshots", "Снимки системы"),
             IFL("Injection map", "Карта инъекций"),
             "LaunchDaemons",
-            IFL("Diagnostic mode", "Режим диагностики")
+            IFL("Diagnostic mode", "Режим диагностики"),
+            IFL("Export system report", "Экспорт системного отчёта")
         ]
         let details = [
             IFL("Compare processes, packages, tweaks and daemons", "Сравнение процессов, пакетов, твиков и демонов"),
             IFL("Tweak filters grouped by target process", "Фильтры твиков по целевым процессам"),
             IFL("Bootstrap daemon state and executable paths", "Состояние демонов и пути запуска"),
-            IFL("Temporarily disable and restore third-party tweaks", "Временное отключение и возврат сторонних твиков")
+            IFL("Temporarily disable and restore third-party tweaks", "Временное отключение и возврат сторонних твиков"),
+            IFL("Generate and share Markdown diagnostics summary", "Сформировать и отправить диагностический отчёт в Markdown")
         ]
         let symbols = [
             "square.stack.3d.up",
             "point.3.connected.trianglepath.dotted",
             "gearshape.2",
-            "stethoscope"
+            "stethoscope",
+            "doc.text.fill"
         ]
         let colors: [UIColor] = [
             .systemIndigo,
             .systemPurple,
             .systemBlue,
-            .systemOrange
+            .systemOrange,
+            .systemGreen
         ]
         let cell = IFValueCell(
             tableView,
@@ -723,6 +727,16 @@ final class IFAdvancedMenuViewController: IFStyledTableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        if indexPath.row == 4 {
+            let report = IFDiagnostics.generateDiagnosticReportMarkdown()
+            let activityVC = UIActivityViewController(activityItems: [report], applicationActivities: nil)
+            if let popover = activityVC.popoverPresentationController, let cell = tableView.cellForRow(at: indexPath) {
+                popover.sourceView = cell
+                popover.sourceRect = cell.bounds
+            }
+            present(activityVC, animated: true)
+            return
+        }
         let controller: UIViewController
         switch indexPath.row {
         case 0:

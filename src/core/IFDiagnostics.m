@@ -72,10 +72,6 @@ static NSString *IFStringFromWiFiValue(CFTypeRef value) {
     return @"";
 }
 
-// CaptiveNetwork and NEHotspotNetwork may deliberately return an empty result
-// for system/rootless apps on some iOS 14–17 jailbreak combinations. MobileWiFi
-// is used only as a fallback and is loaded dynamically to keep older releases
-// compatible.
 static NSDictionary<NSString *, NSString *> *IFMobileWiFiInfo(void) {
     typedef CFTypeRef (*IFWiFiManagerCreateFn)(CFAllocatorRef, CFTypeRef);
     typedef CFArrayRef (*IFWiFiManagerCopyDevicesFn)(CFTypeRef);
@@ -559,6 +555,23 @@ static double IFSystemCPUPercent(void) {
         temperature > 0 ? [NSString stringWithFormat:@"%.1f °C", temperature] : IFD(@"Unavailable", @"Недоступно"),
         thermalState);
 
+    NSInteger thermalRaw = [IFetchCore thermalStateRaw];
+    NSString *thermalDesc = [IFetchCore thermalStateDescription];
+    IFHealthState thermalSysState = thermalRaw <= 0 ? IFHealthStateGood
+        : (thermalRaw == 1 ? IFHealthStateGood : (thermalRaw == 2 ? IFHealthStateWarning : IFHealthStateProblem));
+    add(@"thermal_state", IFD(@"Thermal status", @"Термальное состояние"),
+        thermalDesc, thermalSysState);
+
+    for (IFProcessSample *proc in hotProcesses) {
+        if (proc.jetsamLimitBytes > 0 && proc.jetsamUsagePercent >= 80.0) {
+            add(@"jetsam_warning", IFD(@"Jetsam memory pressure", @"Нагрузка на лимит Jetsam"),
+                [NSString stringWithFormat:@"%@ (PID %d): %.1f%% (%@)",
+                 proc.name, proc.pid, proc.jetsamUsagePercent, [IFetchCore formatBytes:proc.jetsamLimitBytes]],
+                proc.jetsamUsagePercent >= 95.0 ? IFHealthStateProblem : IFHealthStateWarning);
+            break;
+        }
+    }
+
     NSInteger crashCount = jailbreak.recentCrashCount;
     add(@"recent_crashes", IFD(@"Recent crashes", @"Недавние сбои"),
         [NSString stringWithFormat:@"%ld / 24h", (long)crashCount],
@@ -653,6 +666,277 @@ static double IFSystemCPUPercent(void) {
     }
     NSArray *parts = [address componentsSeparatedByString:@"."];
     return parts.count == 4 ? [NSString stringWithFormat:@"%@.%@.*.*", parts[0], parts[1]] : @"…";
+}
+
++ (NSDictionary<NSString *, id> *)generateDiagnosticReportDictionary {
+    IFDeviceInfo *device = [IFDeviceInfo currentDevice];
+    IFJailbreakInfo *jailbreak = [IFetchCore jailbreakInfo];
+    IFBatteryDetails *battery = [self batteryDetails];
+    IFProcessMonitor *monitor = [[IFProcessMonitor alloc] init];
+    [monitor refresh];
+
+    NSNumber *usedMemory = [IFetchCore usedMemoryBytes] ?: @0;
+    NSNumber *totalStorage = [IFetchCore totalStorageBytes] ?: @0;
+    NSNumber *usedStorage = [IFetchCore usedStorageBytes] ?: @0;
+
+    NSMutableArray *activeTweaks = [NSMutableArray array];
+    for (IFTweakRecord *tweak in [self installedTweaks]) {
+        [activeTweaks addObject:@{
+            @"name": tweak.name ?: @"",
+            @"path": tweak.dylibPath ?: @"",
+            @"package": tweak.packageIdentifier ?: @"",
+            @"version": tweak.packageVersion ?: @"",
+            @"enabled": @(tweak.isEnabled)
+        }];
+    }
+
+    NSMutableArray *crashes = [NSMutableArray array];
+    for (IFCrashLog *log in [self recentCrashLogsWithLimit:5]) {
+        [crashes addObject:@{
+            @"name": log.name ?: @"",
+            @"date": log.date ? [log.date description] : @"",
+            @"kind": log.kind ?: @"",
+            @"path": log.path ?: @""
+        }];
+    }
+
+    NSMutableArray *cpuProcs = [NSMutableArray array];
+    for (IFProcessSample *sample in [monitor topProcessesByCPU:5]) {
+        [cpuProcs addObject:@{
+            @"pid": @(sample.pid),
+            @"name": sample.name ?: @"",
+            @"cpu_percent": @(sample.cpuPercent),
+            @"resident_bytes": @(sample.residentBytes),
+            @"jetsam_band": sample.jetsamBandName ?: @"",
+            @"jetsam_priority": @(sample.jetsamPriority),
+            @"jetsam_limit_bytes": @(sample.jetsamLimitBytes),
+            @"jetsam_usage_percent": @(sample.jetsamUsagePercent)
+        }];
+    }
+
+    NSMutableArray *memProcs = [NSMutableArray array];
+    for (IFProcessSample *sample in [monitor topProcessesByMemory:5]) {
+        [memProcs addObject:@{
+            @"pid": @(sample.pid),
+            @"name": sample.name ?: @"",
+            @"cpu_percent": @(sample.cpuPercent),
+            @"resident_bytes": @(sample.residentBytes),
+            @"jetsam_band": sample.jetsamBandName ?: @"",
+            @"jetsam_priority": @(sample.jetsamPriority),
+            @"jetsam_limit_bytes": @(sample.jetsamLimitBytes),
+            @"jetsam_usage_percent": @(sample.jetsamUsagePercent)
+        }];
+    }
+
+    NSMutableArray *jetsamProcs = [NSMutableArray array];
+    for (IFProcessSample *sample in [monitor topProcessesByJetsamPressure:5]) {
+        [jetsamProcs addObject:@{
+            @"pid": @(sample.pid),
+            @"name": sample.name ?: @"",
+            @"resident_bytes": @(sample.residentBytes),
+            @"jetsam_band": sample.jetsamBandName ?: @"",
+            @"jetsam_priority": @(sample.jetsamPriority),
+            @"jetsam_limit_bytes": @(sample.jetsamLimitBytes),
+            @"jetsam_usage_percent": @(sample.jetsamUsagePercent)
+        }];
+    }
+
+    NSMutableArray *healthList = [NSMutableArray array];
+    for (IFHealthItem *item in [self healthItemsWithJailbreak:jailbreak battery:battery processes:[monitor topProcessesByCPU:3]]) {
+        NSString *stateName = item.state == IFHealthStateGood ? @"Good" : (item.state == IFHealthStateWarning ? @"Warning" : @"Problem");
+        [healthList addObject:@{
+            @"id": item.identifier ?: @"",
+            @"title": item.title ?: @"",
+            @"detail": item.detail ?: @"",
+            @"state": stateName
+        }];
+    }
+
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    formatter.dateFormat = @"yyyy-MM-dd HH:mm:ss Z";
+    NSString *timestamp = [formatter stringFromDate:[NSDate date]];
+
+    return @{
+        @"report_version": [IFetchCore versionString],
+        @"timestamp": timestamp,
+        @"device": @{
+            @"model": device.modelName ?: @"",
+            @"identifier": device.identifier ?: @"",
+            @"chip": device.chipName ?: @"",
+            @"architecture": device.architectureName ?: @"",
+            @"os_version": NSProcessInfo.processInfo.operatingSystemVersionString,
+            @"darwin_version": [IFetchCore darwinVersion],
+            @"uptime": [IFetchCore systemUptime]
+        },
+        @"thermal": @{
+            @"state": [IFetchCore thermalStateDescription],
+            @"state_raw": @([IFetchCore thermalStateRaw]),
+            @"throttling": @([IFetchCore isThermalThrottling]),
+            @"summary": [IFetchCore thermalThrottlingSummary]
+        },
+        @"battery": @{
+            @"health_percent": @(battery.healthPercent),
+            @"current_capacity_mah": battery.currentCapacity ?: @0,
+            @"maximum_capacity_mah": battery.maximumCapacity ?: @0,
+            @"design_capacity_mah": battery.designCapacity ?: @0,
+            @"cycle_count": battery.cycleCount ?: @0,
+            @"temperature_celsius": battery.temperatureCelsius ?: @0,
+            @"voltage_mv": battery.voltageMillivolts ?: @0,
+            @"amperage_ma": battery.amperageMilliamps ?: @0,
+            @"charging_watts": @(battery.chargingWatts),
+            @"charging": @(battery.charging)
+        },
+        @"memory_storage": @{
+            @"memory_total_bytes": @([IFetchCore totalMemoryBytes]),
+            @"memory_used_bytes": usedMemory,
+            @"storage_total_bytes": totalStorage,
+            @"storage_used_bytes": usedStorage
+        },
+        @"jailbreak": @{
+            @"environment": jailbreak.environmentName ?: @"",
+            @"root_prefix": jailbreak.rootPrefix ?: @"",
+            @"injector": jailbreak.injectorDescription ?: @"",
+            @"packages_count": @(jailbreak.installedPackageCount),
+            @"active_tweaks_count": @(jailbreak.activeTweakCount),
+            @"crash_logs_24h": @(jailbreak.recentCrashCount)
+        },
+        @"tweaks": activeTweaks,
+        @"recent_crashes": crashes,
+        @"top_cpu_processes": cpuProcs,
+        @"top_memory_processes": memProcs,
+        @"top_jetsam_processes": jetsamProcs,
+        @"health": healthList,
+        @"network": [self extendedNetworkDetails]
+    };
+}
+
++ (NSString *)generateDiagnosticReportMarkdown {
+    NSDictionary<NSString *, id> *dict = [self generateDiagnosticReportDictionary];
+    NSDictionary *device = dict[@"device"];
+    NSDictionary *thermal = dict[@"thermal"];
+    NSDictionary *battery = dict[@"battery"];
+    NSDictionary *memStorage = dict[@"memory_storage"];
+    NSDictionary *jailbreak = dict[@"jailbreak"];
+    NSArray *tweaks = dict[@"tweaks"];
+    NSArray *crashes = dict[@"recent_crashes"];
+    NSArray *cpuProcs = dict[@"top_cpu_processes"];
+    NSArray *memProcs = dict[@"top_memory_processes"];
+    NSArray *jetsamProcs = dict[@"top_jetsam_processes"];
+    NSArray *health = dict[@"health"];
+    NSDictionary *network = dict[@"network"];
+
+    NSMutableString *md = [NSMutableString string];
+    [md appendFormat:@"# iFetch System Diagnostics Report\n"];
+    [md appendFormat:@"*Generated: %@ (iFetch v%@)*\n\n", dict[@"timestamp"], dict[@"report_version"]];
+
+    [md appendString:@"## 📱 Device & Operating System\n"];
+    [md appendFormat:@"- **Model:** %@ (`%@`)\n", device[@"model"], device[@"identifier"]];
+    [md appendFormat:@"- **Chip / Architecture:** %@ (`%@`)\n", device[@"chip"], device[@"architecture"]];
+    [md appendFormat:@"- **OS Version:** %@\n", device[@"os_version"]];
+    [md appendFormat:@"- **Darwin Kernel:** %@\n", device[@"darwin_version"]];
+    [md appendFormat:@"- **System Uptime:** %@\n\n", device[@"uptime"]];
+
+    [md appendString:@"## 🌡️ Thermal State & Throttling\n"];
+    [md appendFormat:@"- **Thermal Status:** %@\n", thermal[@"state"]];
+    [md appendFormat:@"- **Throttling Active:** %@\n", [thermal[@"throttling"] boolValue] ? @"YES" : @"NO"];
+    [md appendFormat:@"- **Impact:** %@\n\n", thermal[@"summary"]];
+
+    [md appendString:@"## 🔋 Battery Health & Power\n"];
+    double batteryHealth = [battery[@"health_percent"] doubleValue];
+    if (batteryHealth > 0) {
+        [md appendFormat:@"- **Battery Health:** %.1f%% (Max: %@ mAh / Design: %@ mAh)\n",
+         batteryHealth, battery[@"maximum_capacity_mah"], battery[@"design_capacity_mah"]];
+    } else {
+        [md appendString:@"- **Battery Health:** Unavailable\n"];
+    }
+    [md appendFormat:@"- **Cycle Count:** %@\n", battery[@"cycle_count"]];
+    [md appendFormat:@"- **Temperature:** %.1f °C\n", [battery[@"temperature_celsius"] doubleValue]];
+    [md appendFormat:@"- **Power Draw / Charge:** %.2f W (%@)\n\n",
+     [battery[@"charging_watts"] doubleValue], [battery[@"charging"] boolValue] ? @"Charging" : @"Discharging"];
+
+    [md appendString:@"## 💾 Memory & Storage\n"];
+    uint64_t memUsed = [memStorage[@"memory_used_bytes"] unsignedLongLongValue];
+    uint64_t memTotal = [memStorage[@"memory_total_bytes"] unsignedLongLongValue];
+    double memPercent = memTotal > 0 ? ((double)memUsed / (double)memTotal) * 100.0 : 0;
+    [md appendFormat:@"- **RAM Usage:** %@ / %@ (%.1f%%)\n",
+     [IFetchCore formatBytes:memUsed], [IFetchCore formatBytes:memTotal], memPercent];
+
+    uint64_t storUsed = [memStorage[@"storage_used_bytes"] unsignedLongLongValue];
+    uint64_t storTotal = [memStorage[@"storage_total_bytes"] unsignedLongLongValue];
+    double storPercent = storTotal > 0 ? ((double)storUsed / (double)storTotal) * 100.0 : 0;
+    [md appendFormat:@"- **Storage:** %@ / %@ (%.1f%%)\n\n",
+     [IFetchCore formatBytes:storUsed], [IFetchCore formatBytes:storTotal], storPercent];
+
+    [md appendString:@"## 🔓 Jailbreak Environment\n"];
+    [md appendFormat:@"- **Environment:** %@\n", jailbreak[@"environment"]];
+    [md appendFormat:@"- **Root Prefix:** `%@`\n", jailbreak[@"root_prefix"]];
+    [md appendFormat:@"- **Tweak Injector:** %@\n", jailbreak[@"injector"]];
+    [md appendFormat:@"- **Installed Packages:** %@\n", jailbreak[@"packages_count"]];
+    [md appendFormat:@"- **Active Tweaks:** %@\n", jailbreak[@"active_tweaks_count"]];
+    [md appendFormat:@"- **Crashes in Last 24h:** %@\n\n", jailbreak[@"crash_logs_24h"]];
+
+    [md appendFormat:@"## 🧩 Active Tweaks (%lu)\n", (unsigned long)tweaks.count];
+    if (tweaks.count == 0) {
+        [md appendString:@"*No tweaks detected.*\n\n"];
+    } else {
+        for (NSDictionary *tweak in tweaks) {
+            NSString *ver = [tweak[@"version"] length] > 0 ? [NSString stringWithFormat:@" v%@", tweak[@"version"]] : @"";
+            NSString *pkg = [tweak[@"package"] length] > 0 ? [NSString stringWithFormat:@" (`%@`)", tweak[@"package"]] : @"";
+            [md appendFormat:@"- **%@**%@%@ — `%@`\n", tweak[@"name"], ver, pkg, tweak[@"path"]];
+        }
+        [md appendString:@"\n"];
+    }
+
+    [md appendString:@"## 🛡️ System Health Checks\n"];
+    for (NSDictionary *item in health) {
+        NSString *icon = [item[@"state"] isEqualToString:@"Good"] ? @"✅" : ([item[@"state"] isEqualToString:@"Warning"] ? @"⚠️" : @"❌");
+        [md appendFormat:@"- %ux200b%@ **%@:** %@\n", 0, icon, item[@"title"], item[@"detail"]];
+    }
+    [md appendString:@"\n"];
+
+    [md appendString:@"## 💥 Recent Crash Logs\n"];
+    if (crashes.count == 0) {
+        [md appendString:@"*No recent crash logs found.*\n\n"];
+    } else {
+        for (NSDictionary *crash in crashes) {
+            [md appendFormat:@"- **%@** | Kind: `%@` | Date: %@\n", crash[@"name"], crash[@"kind"], crash[@"date"]];
+        }
+        [md appendString:@"\n"];
+    }
+
+    [md appendString:@"## ⚙️ Top Processes (RAM / CPU / Jetsam)\n"];
+    [md appendString:@"### Top CPU Consumers\n"];
+    for (NSDictionary *p in cpuProcs) {
+        [md appendFormat:@"- **%@** (PID %@): %.1f%% CPU, %@ RAM, Jetsam Band: %@\n",
+         p[@"name"], p[@"pid"], [p[@"cpu_percent"] doubleValue], [IFetchCore formatBytes:[p[@"resident_bytes"] unsignedLongLongValue]], p[@"jetsam_band"]];
+    }
+
+    [md appendString:@"\n### Top Memory Consumers & Jetsam Limits\n"];
+    for (NSDictionary *p in memProcs) {
+        uint64_t limit = [p[@"jetsam_limit_bytes"] unsignedLongLongValue];
+        NSString *limitStr = limit > 0
+            ? [NSString stringWithFormat:@"Limit: %@ (%.1f%% used)", [IFetchCore formatBytes:limit], [p[@"jetsam_usage_percent"] doubleValue]]
+            : @"Limit: Default/Unlimited";
+        [md appendFormat:@"- **%@** (PID %@): %@ RAM | Band: %@ | %@\n",
+         p[@"name"], p[@"pid"], [IFetchCore formatBytes:[p[@"resident_bytes"] unsignedLongLongValue]], p[@"jetsam_band"], limitStr];
+    }
+
+    [md appendString:@"\n## 🌐 Network Status\n"];
+    [md appendFormat:@"- **Local IP:** %@\n", network[@"ipv4"] ?: @"—"];
+    if ([network[@"ssid"] length] > 0) {
+        [md appendFormat:@"- **Wi-Fi SSID:** %@\n", network[@"ssid"]];
+    }
+    if ([network[@"radio"] length] > 0) {
+        [md appendFormat:@"- **Cellular Radio:** %@\n", network[@"radio"]];
+    }
+    if ([network[@"dnsLatency"] doubleValue] >= 0) {
+        [md appendFormat:@"- **DNS Query Latency:** %.1f ms\n", [network[@"dnsLatency"] doubleValue]];
+    }
+    [md appendFormat:@"- **Internet Probe:** %@ (Latency: %@)\n\n",
+     [network[@"internetAvailable"] boolValue] ? @"Online" : @"Offline", network[@"internetLatency"] ?: @"—"];
+
+    [md appendString:@"---\n*Report generated by iFetch.*\n"];
+    return md;
 }
 
 @end

@@ -38,6 +38,11 @@ typedef NS_ENUM(NSInteger, IFLanguage) {
 @property (nonatomic, assign) double cpuPercent;
 @property (nonatomic, assign) NSInteger threadCount;
 @property (nonatomic, assign) NSTimeInterval runningTime;
+@property (nonatomic, assign) NSInteger jetsamPriority;
+@property (nonatomic, copy) NSString *jetsamBandName;
+@property (nonatomic, assign) uint64_t jetsamLimitBytes;
+@property (nonatomic, assign) double jetsamUsagePercent;
+@property (nonatomic, assign) uint32_t jetsamState;
 
 @end
 
@@ -45,6 +50,7 @@ typedef NS_ENUM(NSInteger, IFLanguage) {
 
 - (NSArray<IFProcessSample *> *)topProcessesByMemory:(NSUInteger)limit;
 - (NSArray<IFProcessSample *> *)topProcessesByCPU:(NSUInteger)limit;
+- (NSArray<IFProcessSample *> *)topProcessesByJetsamPressure:(NSUInteger)limit;
 - (NSArray<IFProcessSample *> *)allProcesses;
 - (void)refresh;
 
@@ -88,6 +94,10 @@ typedef NS_ENUM(NSInteger, IFLanguage) {
 + (NSString *)systemUptime;
 + (NSString *)darwinVersion;
 + (nullable NSString *)batteryCycleCount;
++ (NSInteger)thermalStateRaw;
++ (NSString *)thermalStateDescription;
++ (NSString *)thermalThrottlingSummary;
++ (BOOL)isThermalThrottling;
 + (IFJailbreakInfo *)jailbreakInfo;
 + (nullable NSString *)executablePathForCandidates:(NSArray<NSString *> *)candidates;
 + (NSString *)formatBytes:(uint64_t)bytes;

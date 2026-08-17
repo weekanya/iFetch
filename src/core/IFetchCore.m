@@ -177,6 +177,7 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFDevic
 #define IF_PROC_ALL_PIDS 1
 #define IF_PROC_PIDTASKINFO 4
 #define IF_PROC_NAME_MAX 1024
+#define IF_MEMORYSTATUS_CMD_GET_PRIORITY_LIST 1
 
 struct if_proc_taskinfo {
     uint64_t virtual_size;
@@ -199,10 +200,39 @@ struct if_proc_taskinfo {
     int32_t priority;
 };
 
+struct if_memorystatus_priority_entry {
+    pid_t pid;
+    int32_t priority;
+    uint64_t user_data;
+    int32_t limit;
+    uint32_t state;
+};
+
 typedef int (*IFProcListPidsFn)(uint32_t, uint32_t, void *, int);
 typedef int (*IFProcPidInfoFn)(int, int, uint64_t, void *, int);
 typedef int (*IFProcNameFn)(int, void *, uint32_t);
 typedef int (*IFProcPidPathFn)(int, void *, uint32_t);
+typedef int (*IFMemorystatusControlFn)(uint32_t command, pid_t pid, uint32_t flags, void *buffer, size_t buffersize);
+
+static NSString *IFJetsamBandName(int32_t priority) {
+    if (priority >= 18) {
+        return [IFLanguageManager english:@"System Critical" russian:@"Критический системный"];
+    } else if (priority >= 15) {
+        return [IFLanguageManager english:@"System High" russian:@"Высокий системный"];
+    } else if (priority >= 10) {
+        return [IFLanguageManager english:@"Foreground" russian:@"Активное приложение"];
+    } else if (priority >= 7) {
+        return [IFLanguageManager english:@"Active Background" russian:@"Активный фон"];
+    } else if (priority >= 3) {
+        return [IFLanguageManager english:@"Background" russian:@"Фоновый процесс"];
+    } else if (priority >= 1) {
+        return [IFLanguageManager english:@"Idle Background" russian:@"Неактивный фон"];
+    } else if (priority == 0) {
+        return [IFLanguageManager english:@"Idle" russian:@"Ожидание"];
+    } else {
+        return [IFLanguageManager english:@"Suspended / Idle" russian:@"Приостановлен"];
+    }
+}
 
 @interface IFProcessMonitor ()
 @property (nonatomic, copy) NSArray<IFProcessSample *> *samples;
@@ -228,9 +258,31 @@ typedef int (*IFProcPidPathFn)(int, void *, uint32_t);
     IFProcPidInfoFn procPidInfo = (IFProcPidInfoFn)dlsym(RTLD_DEFAULT, "proc_pidinfo");
     IFProcNameFn procName = (IFProcNameFn)dlsym(RTLD_DEFAULT, "proc_name");
     IFProcPidPathFn procPidPath = (IFProcPidPathFn)dlsym(RTLD_DEFAULT, "proc_pidpath");
+    IFMemorystatusControlFn memorystatusControl = (IFMemorystatusControlFn)dlsym(RTLD_DEFAULT, "memorystatus_control");
     if (procListPids == NULL || procPidInfo == NULL || procName == NULL) {
         self.samples = @[];
         return;
+    }
+
+    NSMutableDictionary<NSNumber *, NSValue *> *jetsamEntries = [NSMutableDictionary dictionary];
+    if (memorystatusControl != NULL) {
+        int bufferSize = memorystatusControl(IF_MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, NULL, 0);
+        if (bufferSize > 0) {
+            struct if_memorystatus_priority_entry *entries = malloc((size_t)bufferSize);
+            if (entries != NULL) {
+                int bytesRead = memorystatusControl(IF_MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, entries, (size_t)bufferSize);
+                if (bytesRead > 0) {
+                    int entryCount = bytesRead / (int)sizeof(struct if_memorystatus_priority_entry);
+                    for (int i = 0; i < entryCount; i++) {
+                        struct if_memorystatus_priority_entry entry = entries[i];
+                        if (entry.pid > 0) {
+                            jetsamEntries[@(entry.pid)] = [NSValue valueWithBytes:&entry objCType:@encode(struct if_memorystatus_priority_entry)];
+                        }
+                    }
+                }
+                free(entries);
+            }
+        }
     }
 
     const int capacity = 4096;
@@ -292,6 +344,31 @@ typedef int (*IFProcPidPathFn)(int, void *, uint32_t);
                 processInfo.kp_proc.p_starttime.tv_usec / 1000000.0;
             sample.runningTime = MAX(0, NSDate.date.timeIntervalSince1970 - start);
         }
+
+        NSValue *entryValue = jetsamEntries[pidKey];
+        if (entryValue != nil) {
+            struct if_memorystatus_priority_entry entry;
+            [entryValue getValue:&entry];
+            sample.jetsamPriority = entry.priority;
+            sample.jetsamBandName = IFJetsamBandName(entry.priority);
+            sample.jetsamState = entry.state;
+            if (entry.limit > 0) {
+                sample.jetsamLimitBytes = (uint64_t)entry.limit * 1024ULL * 1024ULL;
+                sample.jetsamUsagePercent = sample.residentBytes > 0
+                    ? MIN(100.0, ((double)sample.residentBytes / (double)sample.jetsamLimitBytes) * 100.0)
+                    : 0.0;
+            } else {
+                sample.jetsamLimitBytes = 0;
+                sample.jetsamUsagePercent = 0.0;
+            }
+        } else {
+            sample.jetsamPriority = -1;
+            sample.jetsamBandName = [IFLanguageManager english:@"Default" russian:@"По умолчанию"];
+            sample.jetsamLimitBytes = 0;
+            sample.jetsamUsagePercent = 0.0;
+            sample.jetsamState = 0;
+        }
+
         [newSamples addObject:sample];
         currentTimes[pidKey] = @(cpuTime);
     }
@@ -318,6 +395,25 @@ typedef int (*IFProcPidPathFn)(int, void *, uint32_t);
             return left.residentBytes > right.residentBytes ? NSOrderedAscending : NSOrderedDescending;
         }
         return left.cpuPercent > right.cpuPercent ? NSOrderedAscending : NSOrderedDescending;
+    }];
+    return [sorted subarrayWithRange:NSMakeRange(0, MIN(limit, sorted.count))];
+}
+
+- (NSArray<IFProcessSample *> *)topProcessesByJetsamPressure:(NSUInteger)limit {
+    NSArray *sorted = [self.samples sortedArrayUsingComparator:^NSComparisonResult(IFProcessSample *left, IFProcessSample *right) {
+        if (left.jetsamLimitBytes > 0 && right.jetsamLimitBytes > 0) {
+            if (fabs(left.jetsamUsagePercent - right.jetsamUsagePercent) > 0.01) {
+                return left.jetsamUsagePercent > right.jetsamUsagePercent ? NSOrderedAscending : NSOrderedDescending;
+            }
+            return left.residentBytes > right.residentBytes ? NSOrderedAscending : NSOrderedDescending;
+        }
+        if (left.jetsamLimitBytes > 0) {
+            return NSOrderedAscending;
+        }
+        if (right.jetsamLimitBytes > 0) {
+            return NSOrderedDescending;
+        }
+        return left.residentBytes > right.residentBytes ? NSOrderedAscending : NSOrderedDescending;
     }];
     return [sorted subarrayWithRange:NSMakeRange(0, MIN(limit, sorted.count))];
 }
@@ -698,6 +794,50 @@ static NSInteger IFRecentCrashCount(void) {
     }
     dlclose(iokit);
     return result;
+}
+
++ (NSInteger)thermalStateRaw {
+    return (NSInteger)NSProcessInfo.processInfo.thermalState;
+}
+
++ (NSString *)thermalStateDescription {
+    NSProcessInfoThermalState state = NSProcessInfo.processInfo.thermalState;
+    switch (state) {
+        case NSProcessInfoThermalStateNominal:
+            return [IFLanguageManager english:@"Nominal" russian:@"Нормальное"];
+        case NSProcessInfoThermalStateFair:
+            return [IFLanguageManager english:@"Fair" russian:@"Умеренный нагрев"];
+        case NSProcessInfoThermalStateSerious:
+            return [IFLanguageManager english:@"Serious (Throttling)" russian:@"Высокий (Троттлинг)"];
+        case NSProcessInfoThermalStateCritical:
+            return [IFLanguageManager english:@"Critical (Heavy Throttling)" russian:@"Критический (Сильный троттлинг)"];
+        default:
+            return [IFLanguageManager english:@"Unknown" russian:@"Неизвестно"];
+    }
+}
+
++ (NSString *)thermalThrottlingSummary {
+    NSProcessInfoThermalState state = NSProcessInfo.processInfo.thermalState;
+    switch (state) {
+        case NSProcessInfoThermalStateNominal:
+            return [IFLanguageManager english:@"No thermal throttling. Full CPU/GPU performance."
+                                      russian:@"Троттлинг отсутствует. Полная производительность CPU/GPU."];
+        case NSProcessInfoThermalStateFair:
+            return [IFLanguageManager english:@"Slight thermal elevation. System operating normally."
+                                      russian:@"Незначительный нагрев. Система работает в штатном режиме."];
+        case NSProcessInfoThermalStateSerious:
+            return [IFLanguageManager english:@"Thermal throttling active. CPU/GPU clock speeds and frame rates are reduced."
+                                      russian:@"Активен троттлинг. Частоты CPU/GPU и частота кадров снижены."];
+        case NSProcessInfoThermalStateCritical:
+            return [IFLanguageManager english:@"Severe thermal throttling. Heavy performance reduction, display dimmed."
+                                      russian:@"Критический троттлинг. Сильное падение производительности, яркость снижена."];
+        default:
+            return @"";
+    }
+}
+
++ (BOOL)isThermalThrottling {
+    return NSProcessInfo.processInfo.thermalState >= NSProcessInfoThermalStateSerious;
 }
 
 + (IFJailbreakInfo *)jailbreakInfo {

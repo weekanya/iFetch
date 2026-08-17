@@ -26,7 +26,7 @@ IFetch_FILES = \
 	core/IFetchCore.m \
 	core/IFDiagnostics.m \
 	core/IFAdvancedDiagnostics.m
-IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications WidgetKit
+IFetch_FRAMEWORKS = UIKit CoreGraphics SystemConfiguration CoreLocation NetworkExtension UserNotifications WidgetKit AVFoundation AudioToolbox
 IFetch_RESOURCE_DIRS = resources
 IFetch_CODESIGN_FLAGS = -Spackaging/Entitlements.plist
 IFetch_CFLAGS = -fobjc-arc
