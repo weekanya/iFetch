@@ -191,6 +191,7 @@ static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
         @"https://captive.apple.com/hotspot-detect.html"
     ];
     __block NSString *lastError = @"";
+    __block NSString *publicIP = @"";
     for (NSString *endpoint in endpoints) {
         dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
         __block BOOL available = NO;
@@ -205,11 +206,17 @@ static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
         [request setValue:[NSString stringWithFormat:@"iFetch/%@", [IFetchCore versionString]]
        forHTTPHeaderField:@"User-Agent"];
         CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
-        [[session dataTaskWithRequest:request completionHandler:^(__unused NSData *data, NSURLResponse *response, NSError *error) {
+        [[session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             NSInteger status = [(NSHTTPURLResponse *)response statusCode];
             available = error == nil && status >= 200 && status < 500;
             if (available) {
                 milliseconds = (CFAbsoluteTimeGetCurrent() - start) * 1000.0;
+                if ([endpoint containsString:@"ipify"] && data != nil && data.length > 0) {
+                    NSString *ip = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                    if (ip.length > 0) {
+                        publicIP = [ip stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+                    }
+                }
             } else {
                 lastError = error.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld", (long)status];
             }
@@ -221,10 +228,22 @@ static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
         }
         [session finishTasksAndInvalidate];
         if (available) {
-            return @{@"available": @YES, @"latency": @(milliseconds), @"endpoint": endpoint, @"error": @""};
+            return @{
+                @"available": @YES,
+                @"latency": @(milliseconds),
+                @"endpoint": endpoint,
+                @"error": @"",
+                @"publicIP": publicIP ?: @""
+            };
         }
     }
-    return @{@"available": @NO, @"latency": @(-1), @"endpoint": @"", @"error": lastError};
+    return @{
+        @"available": @NO,
+        @"latency": @(-1),
+        @"endpoint": @"",
+        @"error": lastError,
+        @"publicIP": @""
+    };
 }
 
 static NSDictionary *IFBatteryRegistryProperties(void) {
@@ -647,15 +666,16 @@ static double IFSystemCPUPercent(void) {
     return @{
         @"ipv4": ipv4,
         @"ipv6": ipv6,
+        @"publicIP": httpsProbe[@"publicIP"] ?: @"",
         @"ssid": ssid,
         @"bssid": bssid,
         @"radio": radio,
         @"interfaces": interfaces,
         @"dnsLatency": @(dnsMilliseconds),
-        @"internetAvailable": httpsProbe[@"available"],
-        @"internetLatency": httpsProbe[@"latency"],
-        @"internetEndpoint": httpsProbe[@"endpoint"],
-        @"internetError": httpsProbe[@"error"]
+        @"internetAvailable": httpsProbe[@"available"] ?: @NO,
+        @"internetLatency": httpsProbe[@"latency"] ?: @(-1),
+        @"internetEndpoint": httpsProbe[@"endpoint"] ?: @"",
+        @"internetError": httpsProbe[@"error"] ?: @""
     };
 }
 
@@ -935,6 +955,9 @@ static double IFSystemCPUPercent(void) {
 
     [md appendString:@"\n## 🌐 Network Status\n"];
     [md appendFormat:@"- **Local IP:** %@\n", network[@"ipv4"] ?: @"—"];
+    if ([network[@"publicIP"] length] > 0) {
+        [md appendFormat:@"- **Public IP:** %@\n", network[@"publicIP"]];
+    }
     if ([network[@"ssid"] length] > 0) {
         [md appendFormat:@"- **Wi-Fi SSID:** %@\n", network[@"ssid"]];
     }

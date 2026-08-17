@@ -1716,7 +1716,7 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if section == 0 {
-            return 8
+            return 9
         }
         return (details["interfaces"] as? [String: Any])?.count ?? 0
     }
@@ -1742,9 +1742,12 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
             let latency = (details["dnsLatency"] as? NSNumber)?.doubleValue ?? -1
             let httpsLatency = (details["internetLatency"] as? NSNumber)?.doubleValue ?? -1
             let string = { (key: String) -> String in self.details[key] as? String ?? "" }
+            let publicIP = string("publicIP")
+            let publicIPValue = publicIP.isEmpty ? IFL("Unavailable", "Недоступно") : publicIP
             let rows: [(String, String, String, UIColor)] = [
-                ("IPv4", string("ipv4"), "4.circle.fill", .systemBlue),
-                ("IPv6", string("ipv6"), "6.circle.fill", .systemIndigo),
+                ("IPv4", string("ipv4").isEmpty ? IFL("Unavailable", "Недоступно") : string("ipv4"), "4.circle.fill", .systemBlue),
+                ("IPv6", string("ipv6").isEmpty ? IFL("Unavailable", "Недоступно") : string("ipv6"), "6.circle.fill", .systemIndigo),
+                (IFL("Public IP", "Внешний IP"), publicIPValue, "globe.badge.chevron.backward", .systemTeal),
                 (
                     "Wi-Fi SSID",
                     string("ssid").isEmpty ? wifiUnavailable : string("ssid"),
@@ -1801,6 +1804,24 @@ final class IFNetworkDetailsViewController: IFStyledTableViewController, CLLocat
         cell.imageView?.image = IFAppStyle.symbol("arrow.up.arrow.down.circle.fill", color: .systemTeal)
             ?? IFAppStyle.symbol("network", color: .systemTeal)
         return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        if let cell = tableView.cellForRow(at: indexPath), let text = cell.detailTextLabel?.text, !text.isEmpty, text != IFL("Unavailable", "Недоступно") {
+            UIPasteboard.general.string = text
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            let alert = UIAlertController(
+                title: IFL("Copied to Clipboard", "Скопировано в буфер"),
+                message: text,
+                preferredStyle: .alert
+            )
+            present(alert, animated: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                alert.dismiss(animated: true)
+            }
+        }
     }
 }
 
