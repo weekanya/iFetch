@@ -186,6 +186,12 @@ static NSDictionary<NSString *, NSString *> *IFCurrentWiFiInfo(void) {
 }
 
 static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
+    static NSDictionary *cachedProbe = nil;
+    static CFAbsoluteTime lastProbeCheck = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedProbe != nil && (now - lastProbeCheck < 10.0)) {
+        return cachedProbe;
+    }
     NSArray<NSString *> *endpoints = @[
         @"https://api.ipify.org/",
         @"https://captive.apple.com/hotspot-detect.html"
@@ -197,8 +203,8 @@ static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
         __block BOOL available = NO;
         __block double milliseconds = -1;
         NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
-        configuration.timeoutIntervalForRequest = 5;
-        configuration.timeoutIntervalForResource = 6;
+        configuration.timeoutIntervalForRequest = 1.5;
+        configuration.timeoutIntervalForResource = 2.0;
         NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration];
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:endpoint]];
         request.HTTPMethod = @"GET";
@@ -222,28 +228,34 @@ static NSDictionary<NSString *, id> *IFHTTPSProbe(void) {
             }
             dispatch_semaphore_signal(semaphore);
         }] resume];
-        long waitResult = dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 7 * NSEC_PER_SEC));
+        long waitResult = dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
         if (waitResult != 0) {
             lastError = IFD(@"Request timed out", @"Превышено время ожидания");
         }
         [session finishTasksAndInvalidate];
         if (available) {
-            return @{
+            NSDictionary *result = @{
                 @"available": @YES,
                 @"latency": @(milliseconds),
                 @"endpoint": endpoint,
                 @"error": @"",
                 @"publicIP": publicIP ?: @""
             };
+            cachedProbe = result;
+            lastProbeCheck = now;
+            return result;
         }
     }
-    return @{
+    NSDictionary *fallback = @{
         @"available": @NO,
         @"latency": @(-1),
         @"endpoint": @"",
         @"error": lastError,
         @"publicIP": @""
     };
+    cachedProbe = fallback;
+    lastProbeCheck = now;
+    return fallback;
 }
 
 static NSDictionary *IFBatteryRegistryProperties(void) {
@@ -283,9 +295,18 @@ static NSDictionary *IFBatteryRegistryProperties(void) {
 }
 
 static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFPackageRecords(void) {
+    static NSDictionary *cachedRecords = nil;
+    static CFAbsoluteTime lastRecordsRead = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedRecords != nil && (now - lastRecordsRead < 20.0)) {
+        return cachedRecords;
+    }
     NSString *root = IFBootstrapRootPath();
     NSString *statusPath = [root stringByAppendingString:@"/Library/dpkg/status"];
     NSString *contents = [NSString stringWithContentsOfFile:statusPath encoding:NSUTF8StringEncoding error:nil];
+    if (contents.length == 0) {
+        return @{};
+    }
     NSMutableDictionary *records = [NSMutableDictionary dictionary];
     for (NSString *stanza in [contents componentsSeparatedByString:@"\n\n"]) {
         NSMutableDictionary *record = [NSMutableDictionary dictionary];
@@ -303,10 +324,18 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IFPacka
             records[record[@"Package"]] = record;
         }
     }
-    return records;
+    cachedRecords = [records copy];
+    lastRecordsRead = now;
+    return cachedRecords;
 }
 
 static NSDictionary<NSString *, NSString *> *IFDylibPackageMap(NSString *root) {
+    static NSDictionary *cachedMap = nil;
+    static CFAbsoluteTime lastMapRead = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedMap != nil && (now - lastMapRead < 45.0)) {
+        return cachedMap;
+    }
     NSString *infoDirectory = [root stringByAppendingString:@"/Library/dpkg/info"];
     NSArray<NSString *> *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:infoDirectory error:nil];
     NSMutableDictionary *map = [NSMutableDictionary dictionary];
@@ -323,7 +352,9 @@ static NSDictionary<NSString *, NSString *> *IFDylibPackageMap(NSString *root) {
             }
         }
     }
-    return map;
+    cachedMap = [map copy];
+    lastMapRead = now;
+    return cachedMap;
 }
 
 static double IFSystemCPUPercent(void) {
@@ -436,14 +467,23 @@ static double IFSystemCPUPercent(void) {
 }
 
 + (NSArray<IFCrashLog *> *)recentCrashLogsWithLimit:(NSUInteger)limit {
+    static NSArray *cachedLogs = nil;
+    static CFAbsoluteTime lastCrashCheck = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedLogs != nil && (now - lastCrashCheck < 15.0)) {
+        if (limit > 0 && cachedLogs.count > limit) {
+            return [cachedLogs subarrayWithRange:NSMakeRange(0, limit)];
+        }
+        return cachedLogs;
+    }
     NSURL *directory = [NSURL fileURLWithPath:@"/var/mobile/Library/Logs/CrashReporter"];
     NSArray *keys = @[NSURLContentModificationDateKey, NSURLIsRegularFileKey];
-    NSDirectoryEnumerator<NSURL *> *enumerator = [[NSFileManager defaultManager] enumeratorAtURL:directory
-                                                                     includingPropertiesForKeys:keys
-                                                                                        options:NSDirectoryEnumerationSkipsHiddenFiles
-                                                                                   errorHandler:nil];
+    NSArray<NSURL *> *files = [[NSFileManager defaultManager] contentsOfDirectoryAtURL:directory
+                                                            includingPropertiesForKeys:keys
+                                                                               options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                                 error:nil];
     NSMutableArray<NSURL *> *found = [NSMutableArray array];
-    for (NSURL *url in enumerator) {
+    for (NSURL *url in files) {
         NSNumber *regular = nil;
         [url getResourceValue:&regular forKey:NSURLIsRegularFileKey error:nil];
         NSString *extension = url.pathExtension.lowercaseString;
@@ -462,10 +502,6 @@ static double IFSystemCPUPercent(void) {
     NSMutableArray *logs = [NSMutableArray array];
     for (NSURL *url in urls) {
         NSString *extension = url.pathExtension.lowercaseString;
-        NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:nil];
-        NSUInteger length = MIN((NSUInteger)(2 * 1024 * 1024), data.length);
-        NSString *preview = length > 0 ? [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, length)]
-                                                               encoding:NSUTF8StringEncoding] : @"";
         NSDate *date = nil;
         [url getResourceValue:&date forKey:NSURLContentModificationDateKey error:nil];
         IFCrashLog *log = [[IFCrashLog alloc] init];
@@ -473,12 +509,14 @@ static double IFSystemCPUPercent(void) {
         log.path = url.path;
         log.kind = extension.uppercaseString;
         log.date = date ?: NSDate.distantPast;
-        log.preview = preview ?: IFD(@"Binary or unreadable crash report", @"Бинарный или нечитаемый crash-отчёт");
+        log.preview = IFD(@"Tap to view full crash log", @"Нажмите для просмотра crash-лога");
         [logs addObject:log];
         if (limit > 0 && logs.count >= limit) {
             break;
         }
     }
+    cachedLogs = [logs copy];
+    lastCrashCheck = now;
     return logs;
 }
 

@@ -606,7 +606,13 @@ static NSString *IFRootPrefix(void) {
     return IFBootstrapRootPath();
 }
 
-static NSArray<NSDictionary<NSString *, NSString *> *> *IFInstalledPackageRecords(NSString *rootPrefix) {
+static NSArray<NSDictionary *> *IFInstalledPackageRecords(NSString *rootPrefix) {
+    static NSArray<NSDictionary *> *cachedRecords = nil;
+    static CFAbsoluteTime lastRead = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedRecords != nil && (now - lastRead < 15.0)) {
+        return cachedRecords;
+    }
     NSString *statusPath = [rootPrefix stringByAppendingString:@"/Library/dpkg/status"];
     NSString *contents = [NSString stringWithContentsOfFile:statusPath encoding:NSUTF8StringEncoding error:nil];
     if (contents.length == 0) {
@@ -616,7 +622,7 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *IFInstalledPackageRecord
     NSMutableArray *records = [NSMutableArray array];
     for (NSString *stanza in [contents componentsSeparatedByString:@"\n\n"]) {
         NSMutableDictionary *record = [NSMutableDictionary dictionary];
-        for (NSString *line in [stanza componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]]) {
+        for (NSString *line in [stanza componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
             NSRange delimiter = [line rangeOfString:@": "];
             if (delimiter.location == NSNotFound) {
                 continue;
@@ -630,10 +636,18 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *IFInstalledPackageRecord
             [records addObject:record];
         }
     }
-    return records;
+    cachedRecords = [records copy];
+    lastRead = now;
+    return cachedRecords;
 }
 
 static NSInteger IFActiveTweakCount(NSString *rootPrefix) {
+    static NSInteger cachedCount = -1;
+    static CFAbsoluteTime lastCheck = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedCount >= 0 && (now - lastCheck < 15.0)) {
+        return cachedCount;
+    }
     NSArray *directories = @[
         [rootPrefix stringByAppendingString:@"/Library/MobileSubstrate/DynamicLibraries"],
         [rootPrefix stringByAppendingString:@"/usr/lib/TweakInject"]
@@ -647,16 +661,23 @@ static NSInteger IFActiveTweakCount(NSString *rootPrefix) {
             }
         }
     }
-    return dylibs.count;
+    cachedCount = dylibs.count;
+    lastCheck = now;
+    return cachedCount;
 }
 
 static NSInteger IFRecentCrashCount(void) {
+    static NSInteger cachedCount = -1;
+    static CFAbsoluteTime lastCheck = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedCount >= 0 && (now - lastCheck < 15.0)) {
+        return cachedCount;
+    }
     NSURL *directory = [NSURL fileURLWithPath:@"/var/mobile/Library/Logs/CrashReporter"];
-    NSArray *keys = @[NSURLContentModificationDateKey, NSURLIsRegularFileKey];
-    NSDirectoryEnumerator<NSURL *> *files = [[NSFileManager defaultManager] enumeratorAtURL:directory
-                                                                 includingPropertiesForKeys:keys
-                                                                                    options:NSDirectoryEnumerationSkipsHiddenFiles
-                                                                               errorHandler:nil];
+    NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtURL:directory
+                                                   includingPropertiesForKeys:@[NSURLContentModificationDateKey]
+                                                                      options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                        error:nil];
     NSDate *cutoff = [NSDate dateWithTimeIntervalSinceNow:-24 * 60 * 60];
     NSInteger count = 0;
     for (NSURL *url in files) {
@@ -664,15 +685,15 @@ static NSInteger IFRecentCrashCount(void) {
         if (![@[@"ips", @"crash", @"panic", @"synced"] containsObject:extension]) {
             continue;
         }
-        NSNumber *regular = nil;
         NSDate *date = nil;
-        [url getResourceValue:&regular forKey:NSURLIsRegularFileKey error:nil];
         [url getResourceValue:&date forKey:NSURLContentModificationDateKey error:nil];
-        if (regular.boolValue && date != nil && [date compare:cutoff] != NSOrderedAscending) {
+        if (date != nil && [date compare:cutoff] != NSOrderedAscending) {
             count++;
         }
     }
-    return count;
+    cachedCount = count;
+    lastCheck = now;
+    return cachedCount;
 }
 
 @implementation IFetchCore
@@ -841,6 +862,12 @@ static NSInteger IFRecentCrashCount(void) {
 }
 
 + (IFJailbreakInfo *)jailbreakInfo {
+    static IFJailbreakInfo *cachedInfo = nil;
+    static CFAbsoluteTime lastInfoCheck = 0;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (cachedInfo != nil && (now - lastInfoCheck < 10.0)) {
+        return cachedInfo;
+    }
     IFJailbreakInfo *info = [[IFJailbreakInfo alloc] init];
     info.rootPrefix = IFRootPrefix();
     NSArray<NSDictionary *> *packages = IFInstalledPackageRecords(info.rootPrefix);
@@ -882,6 +909,8 @@ static NSInteger IFRecentCrashCount(void) {
     if (info.injectorDescription.length == 0) {
         info.injectorDescription = [IFLanguageManager english:@"Not detected" russian:@"Не обнаружен"];
     }
+    cachedInfo = info;
+    lastInfoCheck = now;
     return info;
 }
 
