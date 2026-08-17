@@ -8,7 +8,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Native diagnostics for rootless and RootHide\n\niFetch 5.1 adds a dedicated RootHide package while retaining conventional rootless support on iOS 14–17."
+          "markdown": "### Advanced system diagnostics for rootless and RootHide\n\niFetch 6.0 introduces hardware speaker diagnostics, Jetsam memory limit explorer, SoC thermal throttling monitoring, and one-click diagnostic report exporter."
         },
         {
           "class": "DepictionSeparatorView"
@@ -19,7 +19,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Swift application and Control Center dashboard\n- Live CPU, memory, temperature, traffic, and process monitoring\n- Crash analysis, network details, snapshots, and Jailbreak Health\n- Dark WidgetKit widgets with automatic and manual refresh\n- Runtime RootHide jbroot path resolution\n- Packages for iphoneos-arm64 and iphoneos-arm64e\n- Full terminal client for NewTerm and SSH"
+          "markdown": "- Hardware speaker diagnostics (Top/Earpiece, Bottom, Stereo) with tone frequency generator\n- Process explorer with Jetsam priority bands, memory limits, and kill risk analysis\n- Real-time SoC thermal state & throttling status\n- One-click full system diagnostics report export (Markdown/JSON)\n- Swift application with iOS 18-inspired design and 60/120 FPS animations\n- Dark WidgetKit widgets and Control Center dashboard\n- Full terminal CLI (`ifetch`) for NewTerm and SSH"
         }
       ],
       "class": "DepictionStackView"
@@ -29,7 +29,7 @@
       "views": [
         {
           "class": "DepictionMarkdownView",
-          "markdown": "### Нативная диагностика для rootless и RootHide\n\niFetch 5.1 добавляет отдельный пакет для RootHide и сохраняет поддержку обычных rootless-джейлбрейков на iOS 14–17."
+          "markdown": "### Расширенная системная диагностика для rootless и RootHide\n\niFetch 6.0 представляет аппаратную диагностику динамиков, диспетчер лимитов памяти Jetsam, мониторинг термального троттлинга SoC и экспорт полных системных отчетов в один клик."
         },
         {
           "class": "DepictionHeaderView",
@@ -37,7 +37,7 @@
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Приложение и панель Control Center на Swift\n- Живой мониторинг CPU, ОЗУ, температуры, сети и процессов\n- Анализ сбоев, сетевые детали, снимки и Jailbreak Health\n- Тёмные виджеты WidgetKit с автообновлением\n- Определение случайного пути jbroot во время работы\n- Пакеты для iphoneos-arm64 и iphoneos-arm64e\n- Полноценный терминальный клиент для NewTerm и SSH"
+          "markdown": "- Аппаратная диагностика динамиков (верхний разговорный, нижний, стерео) с генератором частот\n- Диспетчер процессов с полосами приоритетов Jetsam, лимитами памяти и риском выгрузки\n- Мониторинг термального статуса SoC и аппаратного троттлинга\n- Экспорт полного отчета диагностики в Markdown/JSON в один клик\n- Приложение на Swift в стиле iOS 18 с плавной анимацией 60/120 FPS\n- Тёмные виджеты WidgetKit и панель Control Center\n- Полноценный терминальный CLI (`ifetch`) для NewTerm и SSH"
         }
       ],
       "class": "DepictionStackView"
@@ -47,11 +47,11 @@
       "views": [
         {
           "class": "DepictionSubheaderView",
-          "title": "Version 5.1.0"
+          "title": "Version 6.0.0"
         },
         {
           "class": "DepictionMarkdownView",
-          "markdown": "- Added a dedicated RootHide build\n- Added runtime jbroot resolution across the app, CLI, helper, and Control Center\n- Added the application container entitlements required by RootHide\n- Updated GitHub Actions and the Sileo repository for both package architectures\n- Retained conventional rootless support on iOS 14–17"
+          "markdown": "- Added Hardware Speaker Diagnostics (Top Earpiece, Bottom Speaker, Stereo) with tone frequency generator (250Hz, 440Hz, 1kHz, 4kHz, Sweep) and measurement audio routing\n- Added Jetsam Memory & Priority Explorer via Darwin kernel `memorystatus_control`\n- Added SoC Thermal State & Hardware Throttling monitoring\n- Added One-Click System Diagnostics Report Exporter in UI and `--report` CLI flag\n- Added 60/120 FPS GPU-accelerated equalizer animations\n- Performance and reliability improvements across rootless and RootHide"
         }
       ],
       "class": "DepictionStackView"
