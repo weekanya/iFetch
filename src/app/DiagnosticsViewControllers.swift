@@ -33,11 +33,11 @@ enum IFSpeakerChannel: Int {
     var subtitle: String {
         switch self {
         case .top:
-            return IFL("Testing top earpiece receiver only", "Проверка только верхнего разговорного динамика")
+            return IFL("Sound is routed strictly to the top earpiece receiver", "Звук подаётся строго в верхний разговорный динамик")
         case .bottom:
-            return IFL("Testing bottom main acoustic speaker only", "Проверка только нижнего основного динамика")
+            return IFL("Sound is routed strictly to the bottom main speaker", "Звук подаётся строго в нижний основной динамик")
         case .both:
-            return IFL("Testing full stereo output across both speakers", "Проверка стереобаланса и обоих динамиков")
+            return IFL("Sound is routed equally to both speakers in full stereo", "Звук подаётся на оба динамика в режиме полного стерео")
         }
     }
 }
@@ -62,39 +62,64 @@ enum IFSpeakerFrequency: Int {
     var detail: String {
         switch self {
         case .bass250:
-            return IFL("Bass tone · Checks membrane rattle and low frequencies", "Бас 250 Гц · Проверка дребезга мембраны и низких частот")
+            return IFL("Bass 250 Hz · Checks membrane rattle and low bass response", "Бас 250 Гц · Проверка дребезга мембраны и низких частот")
         case .speech440:
-            return IFL("Mid tone · A4 musical reference and speech band", "Средние 440 Гц · Эталонная нота Ля и речевой диапазон")
+            return IFL("Mid 440 Hz · A4 reference pitch and speech band", "Средние 440 Гц · Эталон ноты Ля и разборчивость речи")
         case .standard1000:
-            return IFL("Standard 1 kHz tone · Calibration test frequency", "Стандарт 1 кГц · Калибровочный измерительный тон")
+            return IFL("Standard 1 kHz · Clean calibration test frequency", "Стандарт 1 кГц · Калибровочный измерительный тон")
         case .treble4000:
-            return IFL("High treble 4 kHz · Checks high-frequency clarity", "Высокие 4 кГц · Проверка четкости высоких частот")
+            return IFL("Treble 4 kHz · High frequency detail and clarity", "Высокие 4 кГц · Детализация и чистота высоких частот")
         case .sweep:
-            return IFL("Frequency sweep · Continuous glide from 200 Hz to 8 kHz", "Частотный свип · Плавное нарастание от 200 Гц до 8 кГц")
+            return IFL("Continuous glide 200 Hz – 8 kHz · Full acoustic response", "Частотный свип 200 Гц – 8 кГц · Тест всего диапазона")
         }
     }
 }
 
 final class IFSpeakerTester: NSObject {
     private var player: AVAudioPlayer?
+    private var audioBuffers: [IFSpeakerFrequency: Data] = [:]
     private(set) var isPlaying = false
     private(set) var currentChannel: IFSpeakerChannel = .top
     private(set) var currentFrequency: IFSpeakerFrequency = .standard1000
+    var isSwapped = false
+
+    override init() {
+        super.init()
+        prepareAudioBuffers()
+    }
+
+    private func prepareAudioBuffers() {
+        let freqs: [IFSpeakerFrequency] = [.bass250, .speech440, .standard1000, .treble4000, .sweep]
+        for f in freqs {
+            audioBuffers[f] = generateMonoWav(frequency: f)
+        }
+    }
 
     func play(channel: IFSpeakerChannel, frequency: IFSpeakerFrequency) {
-        stop()
         currentChannel = channel
         currentFrequency = frequency
 
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setCategory(.playback, mode: .measurement, options: [.mixWithOthers])
             try session.setActive(true)
 
-            let wavData = generateStereoWav(channel: channel, frequency: frequency)
-            player = try AVAudioPlayer(data: wavData)
-            player?.numberOfLoops = -1
-            player?.prepareToPlay()
+            guard let data = audioBuffers[frequency] else { return }
+
+            if let p = player, isPlaying {
+                let currentTime = p.currentTime
+                p.stop()
+                player = try AVAudioPlayer(data: data)
+                player?.numberOfLoops = -1
+                player?.currentTime = currentTime
+                player?.prepareToPlay()
+            } else {
+                player = try AVAudioPlayer(data: data)
+                player?.numberOfLoops = -1
+                player?.prepareToPlay()
+            }
+
+            updatePan()
             player?.play()
             isPlaying = true
         } catch {
@@ -103,22 +128,57 @@ final class IFSpeakerTester: NSObject {
         }
     }
 
-    func stop() {
-        if let p = player {
-            p.stop()
-            player = nil
+    func setChannel(_ channel: IFSpeakerChannel) {
+        currentChannel = channel
+        if isPlaying {
+            updatePan()
         }
+    }
+
+    func setFrequency(_ frequency: IFSpeakerFrequency) {
+        currentFrequency = frequency
+        if isPlaying {
+            play(channel: currentChannel, frequency: frequency)
+        }
+    }
+
+    func toggleSwap() {
+        isSwapped.toggle()
+        if isPlaying {
+            updatePan()
+        }
+    }
+
+    private func updatePan() {
+        guard let p = player else { return }
+        switch currentChannel {
+        case .top:
+            p.pan = isSwapped ? 1.0 : -1.0
+        case .bottom:
+            p.pan = isSwapped ? -1.0 : 1.0
+        case .both:
+            p.pan = 0.0
+        }
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
         isPlaying = false
+    }
+
+    func deactivateSession() {
+        stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    private func generateStereoWav(channel: IFSpeakerChannel, frequency: IFSpeakerFrequency) -> Data {
+    private func generateMonoWav(frequency: IFSpeakerFrequency) -> Data {
         let sampleRate: Double = 44100.0
         let isSweep = frequency == .sweep
         let duration: Double = isSweep ? 2.5 : 1.0
         let totalSamples = Int(sampleRate * duration)
         let bytesPerSample = 2
-        let channels: UInt16 = 2
+        let channels: UInt16 = 1
         let dataSize = totalSamples * Int(channels) * bytesPerSample
         let fileSize = 36 + dataSize
 
@@ -159,7 +219,7 @@ final class IFSpeakerTester: NSObject {
         }
 
         let fadeLength = 441
-        let maxAmp: Double = 22000.0
+        let maxAmp: Double = 23000.0
 
         for i in 0..<totalSamples {
             let t = Double(i) / sampleRate
@@ -181,26 +241,8 @@ final class IFSpeakerTester: NSObject {
             }
 
             let sampleVal = Int16(clamping: Int(wave * env * maxAmp))
-
-            var leftVal: Int16 = 0
-            var rightVal: Int16 = 0
-
-            switch channel {
-            case .top:
-                leftVal = sampleVal
-                rightVal = 0
-            case .bottom:
-                leftVal = 0
-                rightVal = sampleVal
-            case .both:
-                leftVal = sampleVal
-                rightVal = sampleVal
-            }
-
-            var leftLE = leftVal.littleEndian
-            var rightLE = rightVal.littleEndian
-            data.append(Data(bytes: &leftLE, count: 2))
-            data.append(Data(bytes: &rightLE, count: 2))
+            var sampleLE = sampleVal.littleEndian
+            data.append(Data(bytes: &sampleLE, count: 2))
         }
 
         return data
@@ -209,29 +251,33 @@ final class IFSpeakerTester: NSObject {
 
 final class IFSpeakerDiagnosticsViewController: UIViewController {
     private let tester = IFSpeakerTester()
-    private var visualTimer: Timer?
-    private var animTick: Int = 0
+    private var displayLink: CADisplayLink?
+    private var animPhase: Double = 0
+    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
 
     private let scrollView = UIScrollView()
     private let stackView = UIStackView()
 
     private let phoneFrameView = UIView()
     private let topSpeakerBar = UIView()
+    private let topSpeakerGlow = UIView()
     private let topSpeakerIcon = UIImageView()
     private let topSpeakerLabel = UILabel()
+    private let topStatusBadge = UILabel()
 
     private let bottomSpeakerBar = UIView()
+    private let bottomSpeakerGlow = UIView()
     private let bottomSpeakerIcon = UIImageView()
     private let bottomSpeakerLabel = UILabel()
+    private let bottomStatusBadge = UILabel()
 
     private let visualizerStack = UIStackView()
     private var visualizerBars: [UIView] = []
-    private var visualizerBarConstraints: [NSLayoutConstraint] = []
 
     private let channelSegment = UISegmentedControl(items: [
-        IFL("Top", "Верхний"),
-        IFL("Bottom", "Нижний"),
-        IFL("Both", "Оба")
+        IFL("Top (Earpiece)", "Верхний"),
+        IFL("Bottom (Main)", "Нижний"),
+        IFL("Both (Stereo)", "Оба")
     ])
     private let channelInfoLabel = UILabel()
 
@@ -240,6 +286,7 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
     ])
     private let frequencyInfoLabel = UILabel()
 
+    private let swapButton = UIButton(type: .system)
     private let playButton = UIButton(type: .system)
     private let tipsCard = UIView()
 
@@ -254,6 +301,7 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         stopTest()
+        tester.deactivateSession()
     }
 
     private func setupUI() {
@@ -282,6 +330,7 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         setupPhoneVisualCard()
         setupChannelControls()
         setupFrequencyControls()
+        setupSwapButton()
         setupPlayButton()
         setupTipsCard()
     }
@@ -292,10 +341,16 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         phoneFrameView.layer.cornerRadius = 24
         phoneFrameView.layer.borderWidth = 1
         phoneFrameView.layer.borderColor = UIColor(white: 1, alpha: 0.12).cgColor
-        phoneFrameView.heightAnchor.constraint(equalToConstant: 220).isActive = true
+        phoneFrameView.heightAnchor.constraint(equalToConstant: 230).isActive = true
 
         let topContainer = UIView()
         topContainer.translatesAutoresizingMaskIntoConstraints = false
+
+        topSpeakerGlow.translatesAutoresizingMaskIntoConstraints = false
+        topSpeakerGlow.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.2)
+        topSpeakerGlow.layer.cornerRadius = 14
+        topSpeakerGlow.alpha = 0
+
         topSpeakerBar.translatesAutoresizingMaskIntoConstraints = false
         topSpeakerBar.layer.cornerRadius = 3.5
         topSpeakerBar.backgroundColor = .systemOrange
@@ -308,32 +363,56 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         topSpeakerLabel.translatesAutoresizingMaskIntoConstraints = false
         topSpeakerLabel.font = .systemFont(ofSize: 13, weight: .bold)
         topSpeakerLabel.textColor = .white
-        topSpeakerLabel.text = IFL("TOP / EARPIECE SPEAKER", "ВЕРХНИЙ ДИНАМИК")
+        topSpeakerLabel.text = IFL("TOP SPEAKER (EARPIECE)", "ВЕРХНИЙ ДИНАМИК")
 
+        topStatusBadge.translatesAutoresizingMaskIntoConstraints = false
+        topStatusBadge.font = .systemFont(ofSize: 10, weight: .bold)
+        topStatusBadge.textColor = .systemOrange
+        topStatusBadge.text = IFL("ACTIVE", "АКТИВЕН")
+        topStatusBadge.alpha = 0
+
+        topContainer.addSubview(topSpeakerGlow)
         topContainer.addSubview(topSpeakerBar)
         topContainer.addSubview(topSpeakerIcon)
         topContainer.addSubview(topSpeakerLabel)
+        topContainer.addSubview(topStatusBadge)
 
         visualizerStack.translatesAutoresizingMaskIntoConstraints = false
         visualizerStack.axis = .horizontal
         visualizerStack.distribution = .fillEqually
         visualizerStack.alignment = .center
-        visualizerStack.spacing = 5
+        visualizerStack.spacing = 4
 
-        for _ in 0..<12 {
+        for _ in 0..<16 {
+            let barContainer = UIView()
+            barContainer.translatesAutoresizingMaskIntoConstraints = false
+
             let bar = UIView()
             bar.translatesAutoresizingMaskIntoConstraints = false
             bar.layer.cornerRadius = 2.5
-            bar.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.35)
-            let heightC = bar.heightAnchor.constraint(equalToConstant: 6)
-            heightC.isActive = true
+            bar.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.4)
+
+            barContainer.addSubview(bar)
+            NSLayoutConstraint.activate([
+                bar.centerXAnchor.constraint(equalTo: barContainer.centerXAnchor),
+                bar.centerYAnchor.constraint(equalTo: barContainer.centerYAnchor),
+                bar.widthAnchor.constraint(equalToConstant: 5),
+                bar.heightAnchor.constraint(equalToConstant: 44)
+            ])
+
+            bar.transform = CGAffineTransform(scaleX: 1.0, y: 0.12)
             visualizerBars.append(bar)
-            visualizerBarConstraints.append(heightC)
-            visualizerStack.addArrangedSubview(bar)
+            visualizerStack.addArrangedSubview(barContainer)
         }
 
         let bottomContainer = UIView()
         bottomContainer.translatesAutoresizingMaskIntoConstraints = false
+
+        bottomSpeakerGlow.translatesAutoresizingMaskIntoConstraints = false
+        bottomSpeakerGlow.backgroundColor = UIColor.systemPurple.withAlphaComponent(0.2)
+        bottomSpeakerGlow.layer.cornerRadius = 14
+        bottomSpeakerGlow.alpha = 0
+
         bottomSpeakerBar.translatesAutoresizingMaskIntoConstraints = false
         bottomSpeakerBar.layer.cornerRadius = 3.5
         bottomSpeakerBar.backgroundColor = .systemPurple
@@ -346,50 +425,80 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         bottomSpeakerLabel.translatesAutoresizingMaskIntoConstraints = false
         bottomSpeakerLabel.font = .systemFont(ofSize: 13, weight: .bold)
         bottomSpeakerLabel.textColor = .white
-        bottomSpeakerLabel.text = IFL("BOTTOM SPEAKER", "НИЖНИЙ ДИНАМИК")
+        bottomSpeakerLabel.text = IFL("BOTTOM SPEAKER (MAIN)", "НИЖНИЙ ДИНАМИК")
 
+        bottomStatusBadge.translatesAutoresizingMaskIntoConstraints = false
+        bottomStatusBadge.font = .systemFont(ofSize: 10, weight: .bold)
+        bottomStatusBadge.textColor = .systemPurple
+        bottomStatusBadge.text = IFL("ACTIVE", "АКТИВЕН")
+        bottomStatusBadge.alpha = 0
+
+        bottomContainer.addSubview(bottomSpeakerGlow)
         bottomContainer.addSubview(bottomSpeakerBar)
         bottomContainer.addSubview(bottomSpeakerIcon)
         bottomContainer.addSubview(bottomSpeakerLabel)
+        bottomContainer.addSubview(bottomStatusBadge)
 
         phoneFrameView.addSubview(topContainer)
         phoneFrameView.addSubview(visualizerStack)
         phoneFrameView.addSubview(bottomContainer)
 
         NSLayoutConstraint.activate([
-            topContainer.topAnchor.constraint(equalTo: phoneFrameView.topAnchor, constant: 16),
+            topContainer.topAnchor.constraint(equalTo: phoneFrameView.topAnchor, constant: 14),
             topContainer.centerXAnchor.constraint(equalTo: phoneFrameView.centerXAnchor),
+
+            topSpeakerGlow.centerXAnchor.constraint(equalTo: topContainer.centerXAnchor),
+            topSpeakerGlow.centerYAnchor.constraint(equalTo: topContainer.centerYAnchor),
+            topSpeakerGlow.widthAnchor.constraint(equalTo: topContainer.widthAnchor, constant: 20),
+            topSpeakerGlow.heightAnchor.constraint(equalTo: topContainer.heightAnchor, constant: 12),
+
             topSpeakerBar.topAnchor.constraint(equalTo: topContainer.topAnchor),
             topSpeakerBar.centerXAnchor.constraint(equalTo: topContainer.centerXAnchor),
             topSpeakerBar.widthAnchor.constraint(equalToConstant: 54),
-            topSpeakerBar.heightAnchor.constraint(equalToConstant: 6),
+            topSpeakerBar.heightAnchor.constraint(equalToConstant: 5),
+
             topSpeakerIcon.topAnchor.constraint(equalTo: topSpeakerBar.bottomAnchor, constant: 6),
             topSpeakerIcon.leadingAnchor.constraint(equalTo: topContainer.leadingAnchor),
             topSpeakerIcon.widthAnchor.constraint(equalToConstant: 16),
             topSpeakerIcon.heightAnchor.constraint(equalToConstant: 16),
+
             topSpeakerLabel.centerYAnchor.constraint(equalTo: topSpeakerIcon.centerYAnchor),
             topSpeakerLabel.leadingAnchor.constraint(equalTo: topSpeakerIcon.trailingAnchor, constant: 6),
-            topSpeakerLabel.trailingAnchor.constraint(equalTo: topContainer.trailingAnchor),
+
+            topStatusBadge.centerYAnchor.constraint(equalTo: topSpeakerIcon.centerYAnchor),
+            topStatusBadge.leadingAnchor.constraint(equalTo: topSpeakerLabel.trailingAnchor, constant: 6),
+            topStatusBadge.trailingAnchor.constraint(equalTo: topContainer.trailingAnchor),
             topContainer.bottomAnchor.constraint(equalTo: topSpeakerIcon.bottomAnchor),
 
             visualizerStack.centerYAnchor.constraint(equalTo: phoneFrameView.centerYAnchor),
             visualizerStack.centerXAnchor.constraint(equalTo: phoneFrameView.centerXAnchor),
-            visualizerStack.widthAnchor.constraint(equalToConstant: 180),
-            visualizerStack.heightAnchor.constraint(equalToConstant: 50),
+            visualizerStack.widthAnchor.constraint(equalToConstant: 200),
+            visualizerStack.heightAnchor.constraint(equalToConstant: 54),
 
-            bottomContainer.bottomAnchor.constraint(equalTo: phoneFrameView.bottomAnchor, constant: -16),
+            bottomContainer.bottomAnchor.constraint(equalTo: phoneFrameView.bottomAnchor, constant: -14),
             bottomContainer.centerXAnchor.constraint(equalTo: phoneFrameView.centerXAnchor),
+
+            bottomSpeakerGlow.centerXAnchor.constraint(equalTo: bottomContainer.centerXAnchor),
+            bottomSpeakerGlow.centerYAnchor.constraint(equalTo: bottomContainer.centerYAnchor),
+            bottomSpeakerGlow.widthAnchor.constraint(equalTo: bottomContainer.widthAnchor, constant: 20),
+            bottomSpeakerGlow.heightAnchor.constraint(equalTo: bottomContainer.heightAnchor, constant: 12),
+
             bottomSpeakerIcon.leadingAnchor.constraint(equalTo: bottomContainer.leadingAnchor),
             bottomSpeakerIcon.topAnchor.constraint(equalTo: bottomContainer.topAnchor),
             bottomSpeakerIcon.widthAnchor.constraint(equalToConstant: 16),
             bottomSpeakerIcon.heightAnchor.constraint(equalToConstant: 16),
+
             bottomSpeakerLabel.centerYAnchor.constraint(equalTo: bottomSpeakerIcon.centerYAnchor),
             bottomSpeakerLabel.leadingAnchor.constraint(equalTo: bottomSpeakerIcon.trailingAnchor, constant: 6),
-            bottomSpeakerLabel.trailingAnchor.constraint(equalTo: bottomContainer.trailingAnchor),
+
+            bottomStatusBadge.centerYAnchor.constraint(equalTo: bottomSpeakerIcon.centerYAnchor),
+            bottomStatusBadge.leadingAnchor.constraint(equalTo: bottomSpeakerLabel.trailingAnchor, constant: 6),
+            bottomStatusBadge.trailingAnchor.constraint(equalTo: bottomContainer.trailingAnchor),
+
             bottomSpeakerBar.topAnchor.constraint(equalTo: bottomSpeakerIcon.bottomAnchor, constant: 6),
             bottomSpeakerBar.centerXAnchor.constraint(equalTo: bottomContainer.centerXAnchor),
             bottomSpeakerBar.widthAnchor.constraint(equalToConstant: 68),
-            bottomSpeakerBar.heightAnchor.constraint(equalToConstant: 6),
+            bottomSpeakerBar.heightAnchor.constraint(equalToConstant: 5),
             bottomSpeakerBar.bottomAnchor.constraint(equalTo: bottomContainer.bottomAnchor)
         ])
 
@@ -398,7 +507,7 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
 
     private func setupChannelControls() {
         let titleLabel = UILabel()
-        titleLabel.text = IFL("Select speaker channel", "Выбор динамика")
+        titleLabel.text = IFL("Speaker channel", "Выбор динамика")
         titleLabel.font = .preferredFont(forTextStyle: .headline)
 
         channelSegment.selectedSegmentIndex = 0
@@ -430,6 +539,14 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         stackView.addArrangedSubview(frequencyInfoLabel)
     }
 
+    private func setupSwapButton() {
+        swapButton.setTitle(IFL("⇄ Swap Channels (Invert L/R)", "⇄ Поменять каналы местами"), for: .normal)
+        swapButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .medium)
+        swapButton.tintColor = .secondaryLabel
+        swapButton.addTarget(self, action: #selector(toggleChannelSwap), for: .touchUpInside)
+        stackView.addArrangedSubview(swapButton)
+    }
+
     private func setupPlayButton() {
         playButton.translatesAutoresizingMaskIntoConstraints = false
         playButton.heightAnchor.constraint(equalToConstant: 54).isActive = true
@@ -458,10 +575,10 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         tipStack.addArrangedSubview(header)
 
         let tips = [
-            IFL("Top speaker: clean sound without rattling or muted volume.", "Верхний динамик: чистый звук без хрипа и приглушения."),
-            IFL("Bottom speaker: full, rich and loud acoustic response.", "Нижний динамик: глубокий и громкий звук."),
-            IFL("Both speakers: balanced stereo field with centered soundstage.", "Оба динамика: сбалансированное стерео без перекоса громкости."),
-            IFL("Frequency sweep: continuous tone without silent dropouts.", "Частотный свип: непрерывное воспроизведение без провалов.")
+            IFL("Top speaker: clear audio from the earpiece grill without rattle.", "Верхний динамик: чистый звук из разговорной решетки без хрипа."),
+            IFL("Bottom speaker: loud, full and rich acoustic response.", "Нижний динамик: глубокий и громкий звук из нижних отверстий."),
+            IFL("Both speakers: balanced stereo stage with centered volume.", "Оба динамика: сбалансированное стерео без перекоса громкости."),
+            IFL("Frequency sweep: continuous glide without silent dropouts.", "Частотный свип: непрерывное нарастание без провалов громкости.")
         ]
 
         for tip in tips {
@@ -499,20 +616,27 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
     }
 
     @objc private func channelChanged() {
+        feedbackGenerator.impactOccurred()
+        let channel = currentChannel()
+        tester.setChannel(channel)
         updateVisualState()
-        if tester.isPlaying {
-            restartTest()
-        }
     }
 
     @objc private func frequencyChanged() {
+        feedbackGenerator.impactOccurred()
+        let freq = currentFrequency()
+        tester.setFrequency(freq)
         updateVisualState()
-        if tester.isPlaying {
-            restartTest()
-        }
+    }
+
+    @objc private func toggleChannelSwap() {
+        feedbackGenerator.impactOccurred()
+        tester.toggleSwap()
+        updateVisualState()
     }
 
     @objc private func togglePlayback() {
+        feedbackGenerator.impactOccurred()
         if tester.isPlaying {
             stopTest()
         } else {
@@ -533,53 +657,55 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         let frequency = currentFrequency()
         tester.play(channel: channel, frequency: frequency)
         updateVisualState()
-        startAnimation()
+        startDisplayLink()
     }
 
     private func stopTest() {
         tester.stop()
-        stopAnimation()
+        stopDisplayLink()
         updateVisualState()
     }
 
-    private func restartTest() {
-        let channel = currentChannel()
-        let frequency = currentFrequency()
-        tester.play(channel: channel, frequency: frequency)
-        updateVisualState()
+    private func startDisplayLink() {
+        displayLink?.invalidate()
+        let link = CADisplayLink(target: self, selector: #selector(displayLinkTick))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
     }
 
-    private func startAnimation() {
-        visualTimer?.invalidate()
-        visualTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.animateVisualizer()
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
+        UIView.animate(withDuration: 0.25) {
+            for bar in self.visualizerBars {
+                bar.transform = CGAffineTransform(scaleX: 1.0, y: 0.12)
+                bar.backgroundColor = UIColor.systemGray.withAlphaComponent(0.3)
+            }
+            self.topSpeakerGlow.alpha = 0
+            self.bottomSpeakerGlow.alpha = 0
         }
     }
 
-    private func stopAnimation() {
-        visualTimer?.invalidate()
-        visualTimer = nil
-        for (index, constraint) in visualizerBarConstraints.enumerated() {
-            constraint.constant = 6
-            visualizerBars[index].backgroundColor = UIColor.systemGray.withAlphaComponent(0.3)
-        }
-        UIView.animate(withDuration: 0.2) {
-            self.view.layoutIfNeeded()
-        }
-    }
-
-    private func animateVisualizer() {
-        animTick += 1
+    @objc private func displayLinkTick() {
+        animPhase += 0.12
         let channel = currentChannel()
         let activeColor: UIColor = channel == .top ? .systemOrange : (channel == .bottom ? .systemPurple : .systemBlue)
-        let heights: [CGFloat] = [12, 28, 44, 32, 48, 20, 42, 36, 50, 26, 38, 16]
-        for (index, constraint) in visualizerBarConstraints.enumerated() {
-            let offset = (index + animTick) % heights.count
-            constraint.constant = heights[offset]
-            visualizerBars[index].backgroundColor = activeColor.withAlphaComponent(0.85)
+
+        for (index, bar) in visualizerBars.enumerated() {
+            let offset = Double(index) * 0.4
+            let rawSin = sin(animPhase * 1.8 + offset)
+            let harmonic = sin(animPhase * 3.1 + offset * 1.5) * 0.3
+            let value = max(0.15, min(1.0, (rawSin + harmonic + 1.2) / 2.2))
+            bar.transform = CGAffineTransform(scaleX: 1.0, y: CGFloat(value))
+            bar.backgroundColor = activeColor.withAlphaComponent(CGFloat(0.45 + value * 0.55))
         }
-        UIView.animate(withDuration: 0.08) {
-            self.view.layoutIfNeeded()
+
+        let pulse = CGFloat((sin(animPhase * 2.5) + 1.0) / 2.0 * 0.5 + 0.3)
+        if channel == .top || channel == .both {
+            topSpeakerGlow.alpha = pulse
+        }
+        if channel == .bottom || channel == .both {
+            bottomSpeakerGlow.alpha = pulse
         }
     }
 
@@ -587,32 +713,36 @@ final class IFSpeakerDiagnosticsViewController: UIViewController {
         let channel = currentChannel()
         let frequency = currentFrequency()
 
-        channelInfoLabel.text = channel.subtitle
+        channelInfoLabel.text = channel.subtitle + (tester.isSwapped ? " · " + IFL("[Channels swapped]", "[Каналы инвертированы]") : "")
         frequencyInfoLabel.text = frequency.detail
 
         let topActive = channel == .top || channel == .both
         let bottomActive = channel == .bottom || channel == .both
 
-        topSpeakerBar.backgroundColor = topActive ? .systemOrange : UIColor(white: 1, alpha: 0.2)
-        topSpeakerIcon.tintColor = topActive ? .systemOrange : UIColor(white: 1, alpha: 0.3)
-        topSpeakerLabel.textColor = topActive ? .white : UIColor(white: 1, alpha: 0.4)
+        UIView.animate(withDuration: 0.2) {
+            self.topSpeakerBar.backgroundColor = topActive ? .systemOrange : UIColor(white: 1, alpha: 0.2)
+            self.topSpeakerIcon.tintColor = topActive ? .systemOrange : UIColor(white: 1, alpha: 0.3)
+            self.topSpeakerLabel.textColor = topActive ? .white : UIColor(white: 1, alpha: 0.4)
+            self.topStatusBadge.alpha = topActive ? 1.0 : 0.0
 
-        bottomSpeakerBar.backgroundColor = bottomActive ? .systemPurple : UIColor(white: 1, alpha: 0.2)
-        bottomSpeakerIcon.tintColor = bottomActive ? .systemPurple : UIColor(white: 1, alpha: 0.3)
-        bottomSpeakerLabel.textColor = bottomActive ? .white : UIColor(white: 1, alpha: 0.4)
+            self.bottomSpeakerBar.backgroundColor = bottomActive ? .systemPurple : UIColor(white: 1, alpha: 0.2)
+            self.bottomSpeakerIcon.tintColor = bottomActive ? .systemPurple : UIColor(white: 1, alpha: 0.3)
+            self.bottomSpeakerLabel.textColor = bottomActive ? .white : UIColor(white: 1, alpha: 0.4)
+            self.bottomStatusBadge.alpha = bottomActive ? 1.0 : 0.0
 
-        if tester.isPlaying {
-            playButton.backgroundColor = .systemRed
-            playButton.setTitle(IFL("Stop test tone", "Остановить воспроизведение"), for: .normal)
-            playButton.setImage(UIImage(systemName: "stop.fill"), for: .normal)
-        } else {
-            playButton.backgroundColor = .systemBlue
-            let channelName = channel.shortTitle
-            playButton.setTitle(
-                String(format: IFL("Play on %@ (%@)", "Тест: %@ (%@)"), channelName, frequency.title),
-                for: .normal
-            )
-            playButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+            if self.tester.isPlaying {
+                self.playButton.backgroundColor = .systemRed
+                self.playButton.setTitle(IFL("Stop test tone", "Остановить воспроизведение"), for: .normal)
+                self.playButton.setImage(UIImage(systemName: "stop.fill"), for: .normal)
+            } else {
+                self.playButton.backgroundColor = .systemBlue
+                let channelName = channel.shortTitle
+                self.playButton.setTitle(
+                    String(format: IFL("Play on %@ (%@)", "Тест: %@ (%@)"), channelName, frequency.title),
+                    for: .normal
+                )
+                self.playButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+            }
         }
     }
 }
